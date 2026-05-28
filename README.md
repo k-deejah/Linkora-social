@@ -28,6 +28,12 @@ The main contract in `packages/contracts/contracts/linkora-contracts` currently 
 
 These primitives provide a minimal base for experimenting with social-financial interactions on Soroban.
 
+## Documentation
+
+- **[System Architecture](./docs/ARCHITECTURE.md)** — High-level overview of system components, data flows, and technology choices
+- **[Design System](./docs/design/README.md)** — UI/UX specifications and brand identity
+- **[Indexer Design](./docs/indexer/INDEXER_DESIGN.md)** — Event indexing strategy and API design
+
 ## Repository Structure
 
 ```text
