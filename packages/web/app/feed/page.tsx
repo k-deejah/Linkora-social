@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Feed } from "../components/Feed";
-import { Post } from "../components/PostCard";
+
 import { CreatePost } from "../components/CreatePost";
 import { useFollowingFeed } from "../hooks/useFollowingFeed";
 import { TipModal } from "../components/TipModal";
@@ -18,9 +18,9 @@ export default function FeedPage() {
     // Check for wallet connection
     const checkWallet = async () => {
       try {
-        // @ts-ignore - Freighter API
+        // @ts-expect-error - Freighter API
         if (window.freighter) {
-          // @ts-ignore
+          // @ts-expect-error - Freighter not in global types
           const address = await window.freighter.getPublicKey();
           setWalletAddress(address);
         }
@@ -55,9 +55,9 @@ export default function FeedPage() {
 
   const handleConnectWallet = async () => {
     try {
-      // @ts-ignore - Freighter API
+      // @ts-expect-error - Freighter API
       if (window.freighter) {
-        // @ts-ignore
+        // @ts-expect-error - Freighter not in global types
         const address = await window.freighter.getPublicKey();
         setWalletAddress(address);
       }
@@ -76,10 +76,7 @@ export default function FeedPage() {
             <p style={styles.connectText}>
               Connect your Freighter wallet to view posts from accounts you follow
             </p>
-            <button
-              onClick={handleConnectWallet}
-              style={styles.connectButton}
-            >
+            <button onClick={handleConnectWallet} style={styles.connectButton}>
               Connect Wallet
             </button>
           </div>
@@ -96,13 +93,13 @@ export default function FeedPage() {
           + New Post
         </Link>
       </header>
-      
+
       <div style={styles.content}>
         {/* Inline post composer */}
         <div style={styles.composerSection}>
           <CreatePost compact />
         </div>
-        
+
         {error && (
           <div style={styles.error}>
             {error}
@@ -111,7 +108,7 @@ export default function FeedPage() {
             </button>
           </div>
         )}
-        
+
         <Feed
           posts={posts}
           loading={loading}
@@ -130,11 +127,11 @@ export default function FeedPage() {
 
         {posts.length === 0 && !loading && !error && (
           <div style={styles.emptyState}>
-            <div style={styles.emptyIcon} aria-hidden="true">👥</div>
+            <div style={styles.emptyIcon} aria-hidden="true">
+              👥
+            </div>
             <h3 style={styles.emptyTitle}>No posts yet</h3>
-            <p style={styles.emptyText}>
-              Follow some accounts to see their posts here
-            </p>
+            <p style={styles.emptyText}>Follow some accounts to see their posts here</p>
           </div>
         )}
         {tippingPost && (

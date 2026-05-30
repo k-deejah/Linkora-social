@@ -1,13 +1,12 @@
-import { renderHook, act, waitFor } from '@testing-library/react';
-import { WalletProvider, useWallet } from '../../components/WalletProvider';
-import React from 'react';
+import { renderHook, act, waitFor } from "@testing-library/react";
+import { WalletProvider, useWallet } from "../../components/WalletProvider";
 
 /**
  * Unit tests for useWallet hook
  * Tests cover wallet connection, disconnection, and error handling
  */
 
-describe('useWallet', () => {
+describe("useWallet", () => {
   // Mock localStorage
   const localStorageMock = (() => {
     let store: Record<string, string> = {};
@@ -36,11 +35,11 @@ describe('useWallet', () => {
   beforeEach(() => {
     localStorage.clear();
     jest.clearAllMocks();
-    Object.defineProperty(window, 'localStorage', {
+    Object.defineProperty(window, "localStorage", {
       value: localStorageMock,
       writable: true,
     });
-    Object.defineProperty(window, 'freighterApi', {
+    Object.defineProperty(window, "freighterApi", {
       value: mockFreighterApi,
       writable: true,
       configurable: true,
@@ -49,11 +48,11 @@ describe('useWallet', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    delete (window as any).freighterApi;
+    delete (window as unknown).freighterApi;
   });
 
-  describe('initial state', () => {
-    it('should return initial disconnected state', () => {
+  describe("initial state", () => {
+    it("should return initial disconnected state", () => {
       const { result } = renderHook(() => useWallet(), {
         wrapper: WalletProvider,
       });
@@ -68,9 +67,9 @@ describe('useWallet', () => {
       });
     });
 
-    it('should load stored public key from localStorage on mount', async () => {
-      const storedKey = 'GBRPYHIL2CI3WHZDTOOQFC6EB4RBIGSJRVSBUOYS77TQ7CQK5FHQ6SR';
-      localStorageMock.setItem('linkora_wallet_public_key', storedKey);
+    it("should load stored public key from localStorage on mount", async () => {
+      const storedKey = "GBRPYHIL2CI3WHZDTOOQFC6EB4RBIGSJRVSBUOYS77TQ7CQK5FHQ6SR";
+      localStorageMock.setItem("linkora_wallet_public_key", storedKey);
 
       const { result } = renderHook(() => useWallet(), {
         wrapper: WalletProvider,
@@ -83,9 +82,9 @@ describe('useWallet', () => {
     });
   });
 
-  describe('connect', () => {
-    it('should successfully connect wallet', async () => {
-      const publicKey = 'GBRPYHIL2CI3WHZDTOOQFC6EB4RBIGSJRVSBUOYS77TQ7CQK5FHQ6SR';
+  describe("connect", () => {
+    it("should successfully connect wallet", async () => {
+      const publicKey = "GBRPYHIL2CI3WHZDTOOQFC6EB4RBIGSJRVSBUOYS77TQ7CQK5FHQ6SR";
       mockFreighterApi.getPublicKey.mockResolvedValueOnce({ publicKey });
 
       const { result } = renderHook(() => useWallet(), {
@@ -100,13 +99,11 @@ describe('useWallet', () => {
       expect(result.current.isConnected).toBe(true);
       expect(result.current.isConnecting).toBe(false);
       expect(result.current.error).toBe(null);
-      expect(localStorageMock.getItem('linkora_wallet_public_key')).toBe(
-        publicKey
-      );
+      expect(localStorageMock.getItem("linkora_wallet_public_key")).toBe(publicKey);
     });
 
-    it('should show isConnecting state during connection', async () => {
-      const publicKey = 'GBRPYHIL2CI3WHZDTOOQFC6EB4RBIGSJRVSBUOYS77TQ7CQK5FHQ6SR';
+    it("should show isConnecting state during connection", async () => {
+      const publicKey = "GBRPYHIL2CI3WHZDTOOQFC6EB4RBIGSJRVSBUOYS77TQ7CQK5FHQ6SR";
       mockFreighterApi.getPublicKey.mockImplementationOnce(
         () =>
           new Promise((resolve) => {
@@ -130,8 +127,8 @@ describe('useWallet', () => {
       expect(result.current.isConnecting).toBe(false);
     });
 
-    it('should handle connection error when Freighter is not installed', async () => {
-      delete (window as any).freighterApi;
+    it("should handle connection error when Freighter is not installed", async () => {
+      delete (window as unknown).freighterApi;
 
       const { result } = renderHook(() => useWallet(), {
         wrapper: WalletProvider,
@@ -142,15 +139,13 @@ describe('useWallet', () => {
       });
 
       expect(result.current.isConnected).toBe(false);
-      expect(result.current.error).toContain('Freighter wallet not detected');
+      expect(result.current.error).toContain("Freighter wallet not detected");
       expect(result.current.isConnecting).toBe(false);
     });
 
-    it('should handle connection error from Freighter API', async () => {
-      const errorMessage = 'User rejected connection';
-      mockFreighterApi.getPublicKey.mockRejectedValueOnce(
-        new Error(errorMessage)
-      );
+    it("should handle connection error from Freighter API", async () => {
+      const errorMessage = "User rejected connection";
+      mockFreighterApi.getPublicKey.mockRejectedValueOnce(new Error(errorMessage));
 
       const { result } = renderHook(() => useWallet(), {
         wrapper: WalletProvider,
@@ -165,13 +160,11 @@ describe('useWallet', () => {
       expect(result.current.publicKey).toBeNull();
     });
 
-    it('should clear previous error on successful connection after error', async () => {
-      const publicKey = 'GBRPYHIL2CI3WHZDTOOQFC6EB4RBIGSJRVSBUOYS77TQ7CQK5FHQ6SR';
+    it("should clear previous error on successful connection after error", async () => {
+      const publicKey = "GBRPYHIL2CI3WHZDTOOQFC6EB4RBIGSJRVSBUOYS77TQ7CQK5FHQ6SR";
 
       // First attempt: error
-      mockFreighterApi.getPublicKey.mockRejectedValueOnce(
-        new Error('Connection failed')
-      );
+      mockFreighterApi.getPublicKey.mockRejectedValueOnce(new Error("Connection failed"));
 
       const { result } = renderHook(() => useWallet(), {
         wrapper: WalletProvider,
@@ -181,7 +174,7 @@ describe('useWallet', () => {
         await result.current.connect();
       });
 
-      expect(result.current.error).toBe('Connection failed');
+      expect(result.current.error).toBe("Connection failed");
 
       // Second attempt: success
       mockFreighterApi.getPublicKey.mockResolvedValueOnce({ publicKey });
@@ -195,10 +188,10 @@ describe('useWallet', () => {
     });
   });
 
-  describe('disconnect', () => {
-    it('should disconnect wallet and clear state', async () => {
-      const publicKey = 'GBRPYHIL2CI3WHZDTOOQFC6EB4RBIGSJRVSBUOYS77TQ7CQK5FHQ6SR';
-      localStorageMock.setItem('linkora_wallet_public_key', publicKey);
+  describe("disconnect", () => {
+    it("should disconnect wallet and clear state", async () => {
+      const publicKey = "GBRPYHIL2CI3WHZDTOOQFC6EB4RBIGSJRVSBUOYS77TQ7CQK5FHQ6SR";
+      localStorageMock.setItem("linkora_wallet_public_key", publicKey);
 
       const { result } = renderHook(() => useWallet(), {
         wrapper: WalletProvider,
@@ -216,10 +209,10 @@ describe('useWallet', () => {
       expect(result.current.isConnected).toBe(false);
       expect(result.current.isConnecting).toBe(false);
       expect(result.current.error).toBeNull();
-      expect(localStorageMock.getItem('linkora_wallet_public_key')).toBeNull();
+      expect(localStorageMock.getItem("linkora_wallet_public_key")).toBeNull();
     });
 
-    it('should safely disconnect when not connected', () => {
+    it("should safely disconnect when not connected", () => {
       const { result } = renderHook(() => useWallet(), {
         wrapper: WalletProvider,
       });
@@ -233,22 +226,20 @@ describe('useWallet', () => {
     });
   });
 
-  describe('error handling', () => {
-    it('should throw error when used outside WalletProvider', () => {
+  describe("error handling", () => {
+    it("should throw error when used outside WalletProvider", () => {
       // Suppress console.error for this test
-      const consoleSpy = jest
-        .spyOn(console, 'error')
-        .mockImplementationOnce(() => {});
+      const consoleSpy = jest.spyOn(console, "error").mockImplementationOnce(() => {});
 
       expect(() => {
         renderHook(() => useWallet());
-      }).toThrow('useWallet must be used within a WalletProvider');
+      }).toThrow("useWallet must be used within a WalletProvider");
 
       consoleSpy.mockRestore();
     });
 
-    it('should handle non-Error objects in catch block', async () => {
-      mockFreighterApi.getPublicKey.mockRejectedValueOnce('Unknown error');
+    it("should handle non-Error objects in catch block", async () => {
+      mockFreighterApi.getPublicKey.mockRejectedValueOnce("Unknown error");
 
       const { result } = renderHook(() => useWallet(), {
         wrapper: WalletProvider,
@@ -258,7 +249,7 @@ describe('useWallet', () => {
         await result.current.connect();
       });
 
-      expect(result.current.error).toBe('Failed to connect wallet');
+      expect(result.current.error).toBe("Failed to connect wallet");
     });
   });
 });

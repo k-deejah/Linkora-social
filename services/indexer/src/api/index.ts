@@ -8,10 +8,7 @@ import { createPoolsRouter } from "./routes/pools";
 
 // ── Rate-limit configuration (all values are env-overridable) ────────────────
 
-const RATE_LIMIT_WINDOW_MS = parseInt(
-  process.env.RATE_LIMIT_WINDOW_MS ?? "60000",
-  10
-);
+const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? "60000", 10);
 const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX ?? "100", 10);
 
 // ── Rate limiter middleware ───────────────────────────────────────────────────
@@ -33,14 +30,11 @@ const apiLimiter = rateLimit({
   },
   handler: (req: Request, res: Response): void => {
     const retryAfter = Math.ceil(RATE_LIMIT_WINDOW_MS / 1000);
-    res
-      .status(429)
-      .set("Retry-After", String(retryAfter))
-      .json({
-        error: "Too many requests. Please retry after the indicated delay.",
-        code: "RATE_LIMIT_EXCEEDED",
-        retryAfterSeconds: retryAfter,
-      });
+    res.status(429).set("Retry-After", String(retryAfter)).json({
+      error: "Too many requests. Please retry after the indicated delay.",
+      code: "RATE_LIMIT_EXCEEDED",
+      retryAfterSeconds: retryAfter,
+    });
   },
 });
 
@@ -105,15 +99,11 @@ export function createApp(db: Database): express.Application {
         return;
       }
 
-      const limit =
-        body.limit !== undefined ? Number(body.limit) : DEFAULT_LIMIT;
-      const offset =
-        body.offset !== undefined ? Number(body.offset) : DEFAULT_OFFSET;
+      const limit = body.limit !== undefined ? Number(body.limit) : DEFAULT_LIMIT;
+      const offset = body.offset !== undefined ? Number(body.offset) : DEFAULT_OFFSET;
 
       if (!Number.isInteger(limit) || limit < 1) {
-        res
-          .status(400)
-          .json({ error: "limit must be a positive integer", code: "INVALID_QUERY" });
+        res.status(400).json({ error: "limit must be a positive integer", code: "INVALID_QUERY" });
         return;
       }
 

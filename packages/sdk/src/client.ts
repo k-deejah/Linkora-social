@@ -1,4 +1,4 @@
-import { Profile, Post, Pool } from './types';
+import { Profile, Post, Pool } from "./types";
 
 /**
  * Configuration options for the SDK client
@@ -28,8 +28,8 @@ export class LinkoraClient {
    * @param address - The Stellar address of the user
    * @returns A promise resolving to the user Profile, or null if not found
    */
-  async getProfile(address: string): Promise<Profile | null> {
-    throw new Error('Not implemented.');
+  async getProfile(_address: string): Promise<Profile | null> {
+    throw new Error("Not implemented.");
   }
 
   /**
@@ -37,8 +37,8 @@ export class LinkoraClient {
    * @param postId - The ID of the post
    * @returns A promise resolving to the Post data, or null if not found
    */
-  async getPost(postId: number): Promise<Post | null> {
-    throw new Error('Not implemented.');
+  async getPost(_postId: number): Promise<Post | null> {
+    throw new Error("Not implemented.");
   }
 
   /**
@@ -46,7 +46,7 @@ export class LinkoraClient {
    * @returns A promise resolving to the total post count
    */
   async getPostCount(): Promise<number> {
-    throw new Error('Not implemented.');
+    throw new Error("Not implemented.");
   }
 
   /**
@@ -54,8 +54,8 @@ export class LinkoraClient {
    * @param address - The address of the follower
    * @returns A promise resolving to an array of addresses
    */
-  async getFollowing(address: string): Promise<string[]> {
-    throw new Error('Not implemented.');
+  async getFollowing(_address: string): Promise<string[]> {
+    throw new Error("Not implemented.");
   }
 
   /**
@@ -63,8 +63,8 @@ export class LinkoraClient {
    * @param address - The address of the user being followed
    * @returns A promise resolving to an array of addresses
    */
-  async getFollowers(address: string): Promise<string[]> {
-    throw new Error('Not implemented.');
+  async getFollowers(_address: string): Promise<string[]> {
+    throw new Error("Not implemented.");
   }
 
   /**
@@ -72,8 +72,8 @@ export class LinkoraClient {
    * @param poolId - The ID of the pool
    * @returns A promise resolving to the Pool data, or null if not found
    */
-  async getPool(poolId: string): Promise<Pool | null> {
-    throw new Error('Not implemented.');
+  async getPool(_poolId: string): Promise<Pool | null> {
+    throw new Error("Not implemented.");
   }
 
   /**
@@ -81,8 +81,8 @@ export class LinkoraClient {
    * @param poolId - The ID of the pool
    * @returns A promise resolving to an array of admin addresses
    */
-  async getPoolAdmins(poolId: string): Promise<string[]> {
-    throw new Error('Not implemented.');
+  async getPoolAdmins(_poolId: string): Promise<string[]> {
+    throw new Error("Not implemented.");
   }
 
   /**
@@ -90,7 +90,7 @@ export class LinkoraClient {
    * @returns A promise resolving to the fee in BPS
    */
   async getFeeBps(): Promise<number> {
-    throw new Error('Not implemented.');
+    throw new Error("Not implemented.");
   }
 
   /**
@@ -98,7 +98,7 @@ export class LinkoraClient {
    * @returns A promise resolving to the treasury address
    */
   async getTreasury(): Promise<string> {
-    throw new Error('Not implemented.');
+    throw new Error("Not implemented.");
   }
 
   /**
@@ -107,8 +107,8 @@ export class LinkoraClient {
    * @param postId - The ID of the post
    * @returns A promise resolving to true if liked, false otherwise
    */
-  async hasLiked(address: string, postId: number): Promise<boolean> {
-    throw new Error('Not implemented.');
+  async hasLiked(_address: string, _postId: number): Promise<boolean> {
+    throw new Error("Not implemented.");
   }
 
   /**
@@ -117,8 +117,8 @@ export class LinkoraClient {
    * @param blocked - The address of the user who is blocked
    * @returns A promise resolving to true if blocked, false otherwise
    */
-  async isBlocked(blocker: string, blocked: string): Promise<boolean> {
-    throw new Error('Not implemented.');
+  async isBlocked(_blocker: string, _blocked: string): Promise<boolean> {
+    throw new Error("Not implemented.");
   }
 
   /**
@@ -126,7 +126,7 @@ export class LinkoraClient {
    * @param postId - The ID of the post
    * @returns A promise resolving to the like count
    */
-  async getLikeCount(postId: number): Promise<number> {
-    throw new Error('Not implemented.');
+  async getLikeCount(_postId: number): Promise<number> {
+    throw new Error("Not implemented.");
   }
 }

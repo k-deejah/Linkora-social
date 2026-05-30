@@ -2,7 +2,10 @@
  * Base class for all Linkora SDK errors.
  */
 export class LinkoraError extends Error {
-  constructor(message: string, public readonly originalError?: any) {
+  constructor(
+    message: string,
+    public readonly originalError?: unknown
+  ) {
     super(message);
     this.name = this.constructor.name;
     // Set prototype explicitly to support instanceof checks in compiled environments.
@@ -42,7 +45,7 @@ export class InvalidInputError extends LinkoraError {}
  * @param err The caught raw error object or string.
  * @returns A typed LinkoraError instance.
  */
-export function mapError(err: any): Error {
+export function mapError(err: unknown): Error {
   const msg = err instanceof Error ? err.message : String(err);
 
   if (/allowance|insufficient allowance/i.test(msg)) {

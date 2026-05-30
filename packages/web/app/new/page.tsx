@@ -80,12 +80,6 @@ export default function NewPostPage() {
     [content, isDisabled, publicKey]
   );
 
-  const handleCloseSuccess = () => {
-    if (publishState.postId) {
-      router.push(`/posts/${publishState.postId}`);
-    }
-  };
-
   const handleTryAgain = () => {
     setPublishState({ status: "idle", errorMsg: "", postId: null });
   };
@@ -133,10 +127,7 @@ export default function NewPostPage() {
               Your post has been successfully published to the blockchain.
             </p>
             <div style={styles.successActions}>
-              <Link
-                href={`/posts/${publishState.postId}`}
-                style={styles.viewPostButton}
-              >
+              <Link href={`/posts/${publishState.postId}`} style={styles.viewPostButton}>
                 View Post →
               </Link>
               <button
@@ -220,8 +211,8 @@ export default function NewPostPage() {
                       stroke: isOverLimit
                         ? "var(--color-like)"
                         : isNearLimit
-                        ? "#f59e0b"
-                        : "var(--color-primary)",
+                          ? "#f59e0b"
+                          : "var(--color-primary)",
                     }}
                     d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   />
@@ -243,11 +234,7 @@ export default function NewPostPage() {
             <div style={styles.errorContainer}>
               <span style={styles.errorIcon}>⚠️</span>
               <span style={styles.errorText}>{publishState.errorMsg}</span>
-              <button
-                type="button"
-                onClick={handleTryAgain}
-                style={styles.tryAgainButton}
-              >
+              <button type="button" onClick={handleTryAgain} style={styles.tryAgainButton}>
                 Try Again
               </button>
             </div>
@@ -264,9 +251,7 @@ export default function NewPostPage() {
                 ...(publishState.status === "awaiting_signature"
                   ? styles.publishButtonSigning
                   : {}),
-                ...(publishState.status === "submitting"
-                  ? styles.publishButtonSubmitting
-                  : {}),
+                ...(publishState.status === "submitting" ? styles.publishButtonSubmitting : {}),
               }}
             >
               {publishState.status === "awaiting_signature" && (
@@ -281,9 +266,7 @@ export default function NewPostPage() {
                   <span>Publishing...</span>
                 </>
               )}
-              {publishState.status === "idle" && (
-                <span>Publish Post</span>
-              )}
+              {publishState.status === "idle" && <span>Publish Post</span>}
             </button>
           </div>
         </form>

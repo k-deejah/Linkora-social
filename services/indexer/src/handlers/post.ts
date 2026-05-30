@@ -30,10 +30,10 @@ export interface PostEventContext {
 export async function handlePostCreated(
   pool: Pool,
   event: PostCreatedEvent,
-  context: PostEventContext,
+  context: PostEventContext
 ): Promise<void> {
   const { id, author } = event;
-  const { txHash, timestamp, content } = context;
+  const { timestamp, content } = context;
 
   // Fetch content from contract state if not provided
   const postContent = content || "";
@@ -75,7 +75,7 @@ export async function handlePostCreated(
 export async function handlePostDeleted(
   pool: Pool,
   event: PostDeletedEvent,
-  context: PostEventContext,
+  context: PostEventContext
 ): Promise<void> {
   const { post_id, author } = event;
   const { timestamp } = context;
@@ -92,17 +92,12 @@ export async function handlePostDeleted(
     const result = await pool.query(query, values);
 
     if (result.rowCount === 0) {
-      console.log(
-        `Post ${post_id} already deleted or not found (idempotent skip)`,
-      );
+      console.log(`Post ${post_id} already deleted or not found (idempotent skip)`);
     } else {
       console.log(`Post ${post_id} deleted by ${author}`);
     }
   } catch (error) {
-    console.error(
-      `Error handling PostDeletedEvent for post ${post_id}:`,
-      error,
-    );
+    console.error(`Error handling PostDeletedEvent for post ${post_id}:`, error);
     throw error;
   }
 }
@@ -111,10 +106,7 @@ export async function handlePostDeleted(
  * Fetch post content from contract state
  * This is a placeholder - implement based on your Stellar SDK setup
  */
-export async function fetchPostContent(
-  contractId: string,
-  postId: bigint,
-): Promise<string> {
+export async function fetchPostContent(_contractId: string, _postId: bigint): Promise<string> {
   // TODO: Implement contract state fetch using Stellar SDK
   // Example:
   // const contract = new Contract(contractId);
@@ -129,7 +121,7 @@ export async function fetchPostContent(
  */
 export function createMockPostCreatedEvent(
   id: bigint = 1n,
-  author: string = "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  author: string = "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 ): { event: PostCreatedEvent; context: PostEventContext } {
   return {
     event: { id, author },
@@ -144,7 +136,7 @@ export function createMockPostCreatedEvent(
 
 export function createMockPostDeletedEvent(
   post_id: bigint = 1n,
-  author: string = "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  author: string = "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 ): { event: PostDeletedEvent; context: PostEventContext } {
   return {
     event: { post_id, author },

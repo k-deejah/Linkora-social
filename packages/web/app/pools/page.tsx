@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAllPools, useTokenMeta } from "../hooks/usePools";
 import { PoolCard, PoolCardSkeleton } from "../components/pools/PoolCard";
 import { PoolEmptyState } from "../components/pools/PoolEmptyState";
-import type { PoolData, TokenMeta } from "../hooks/usePools";
+import type { PoolData } from "../hooks/usePools";
 
 // ── Token meta wrapper per card ───────────────────────────────────────────────
 
@@ -25,9 +25,7 @@ export default function PoolsPage() {
       <header style={styles.header}>
         <div style={styles.headerText}>
           <h1 style={styles.title}>Community Pools</h1>
-          <p style={styles.subtitle}>
-            M-of-N multisig treasury pools governed by admin sets
-          </p>
+          <p style={styles.subtitle}>M-of-N multisig treasury pools governed by admin sets</p>
         </div>
         <div style={styles.headerActions}>
           <button
@@ -65,9 +63,7 @@ export default function PoolsPage() {
       )}
 
       {/* Empty state */}
-      {state === "success" && pools.length === 0 && (
-        <PoolEmptyState variant="no-pools" />
-      )}
+      {state === "success" && pools.length === 0 && <PoolEmptyState variant="no-pools" />}
 
       {/* Pool grid */}
       {state === "success" && pools.length > 0 && (

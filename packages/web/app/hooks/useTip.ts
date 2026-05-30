@@ -6,9 +6,9 @@ import { classifyError } from "./usePoolContract";
 
 export type TipStatus =
   | "idle"
-  | "approving"       // allowance approval step
-  | "awaiting_sig"    // Freighter signature step
-  | "submitting"      // broadcast to network step
+  | "approving" // allowance approval step
+  | "awaiting_sig" // Freighter signature step
+  | "submitting" // broadcast to network step
   | "success"
   | "error";
 
@@ -29,14 +29,14 @@ export function useTip() {
       tokenAddress: string,
       amountRaw: string,
       decimals: number,
-      contractAddress: string // Address of Linkora contract to approve spending limit
+      _contractAddress: string // Address of Linkora contract to approve spending limit
     ) => {
       setStatus("approving");
       setError(null);
       setResult(null);
 
       try {
-        const amount = parseTokenAmount(amountRaw, decimals);
+        const _amount = parseTokenAmount(amountRaw, decimals);
 
         // Step 1: Simulate the Token allowance step (increase_allowance)
         // In a live integration, we'd invoke token::increase_allowance

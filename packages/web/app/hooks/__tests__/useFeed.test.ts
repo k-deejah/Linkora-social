@@ -1,5 +1,5 @@
-import { renderHook, act, waitFor } from '@testing-library/react';
-import { useFollowingFeed, Post } from '../useFollowingFeed';
+import { renderHook, act, waitFor } from "@testing-library/react";
+import { useFollowingFeed, Post } from "../useFollowingFeed";
 
 /**
  * Unit tests for useFeed (useFollowingFeed) hook
@@ -7,22 +7,22 @@ import { useFollowingFeed, Post } from '../useFollowingFeed';
  */
 
 // Mock the contract call functions
-jest.mock('../useFollowingFeed', () => {
-  const actual = jest.requireActual('../useFollowingFeed');
+jest.mock("../useFollowingFeed", () => {
+  const actual = jest.requireActual("../useFollowingFeed");
   return {
     ...actual,
     useFollowingFeed: jest.fn(actual.useFollowingFeed),
   };
 });
 
-describe('useFollowingFeed', () => {
-  const mockWalletAddress = 'GBRPYHIL2CI3WHZDTOOQFC6EB4RBIGSJRVSBUOYS77TQ7CQK5FHQ6SR';
+describe("useFollowingFeed", () => {
+  const mockWalletAddress = "GBRPYHIL2CI3WHZDTOOQFC6EB4RBIGSJRVSBUOYS77TQ7CQK5FHQ6SR";
 
-  const mockPost: Post = {
+  const _mockPost: Post = {
     id: 1,
-    author: 'GABCD1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-    username: 'test_user',
-    content: 'Test post content',
+    author: "GABCD1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    username: "test_user",
+    content: "Test post content",
     tip_total: 100,
     timestamp: Math.floor(Date.now() / 1000),
     like_count: 5,
@@ -32,8 +32,8 @@ describe('useFollowingFeed', () => {
     jest.clearAllMocks();
   });
 
-  describe('initial state', () => {
-    it('should return initial loading state', () => {
+  describe("initial state", () => {
+    it("should return initial loading state", () => {
       const { result } = renderHook(() => useFollowingFeed(null));
 
       expect(result.current).toEqual({
@@ -45,7 +45,7 @@ describe('useFollowingFeed', () => {
       });
     });
 
-    it('should not load when wallet address is null', async () => {
+    it("should not load when wallet address is null", async () => {
       const { result } = renderHook(() => useFollowingFeed(null));
 
       await waitFor(() => {
@@ -55,8 +55,8 @@ describe('useFollowingFeed', () => {
     });
   });
 
-  describe('initial load', () => {
-    it('should load initial posts when wallet address is provided', async () => {
+  describe("initial load", () => {
+    it("should load initial posts when wallet address is provided", async () => {
       // This test demonstrates the expected behavior
       // In reality, we'd need to mock the contract calls
       const { result } = renderHook(() => useFollowingFeed(mockWalletAddress));
@@ -69,7 +69,7 @@ describe('useFollowingFeed', () => {
       expect(result.current.posts).toBeDefined();
     });
 
-    it('should handle empty feed state', async () => {
+    it("should handle empty feed state", async () => {
       const { result } = renderHook(() => useFollowingFeed(mockWalletAddress));
 
       await waitFor(() => {
@@ -84,21 +84,21 @@ describe('useFollowingFeed', () => {
     });
   });
 
-  describe('pagination', () => {
-    it('should have loadMore function available', () => {
+  describe("pagination", () => {
+    it("should have loadMore function available", () => {
       const { result } = renderHook(() => useFollowingFeed(mockWalletAddress));
 
-      expect(typeof result.current.loadMore).toBe('function');
+      expect(typeof result.current.loadMore).toBe("function");
     });
 
-    it('should handle load more action', async () => {
+    it("should handle load more action", async () => {
       const { result } = renderHook(() => useFollowingFeed(mockWalletAddress));
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
       });
 
-      const initialPostCount = result.current.posts.length;
+      const _initialPostCount = result.current.posts.length;
 
       act(() => {
         result.current.loadMore();
@@ -109,7 +109,7 @@ describe('useFollowingFeed', () => {
       expect(result.current.posts).toBeDefined();
     });
 
-    it('should indicate when no more posts are available', async () => {
+    it("should indicate when no more posts are available", async () => {
       const { result } = renderHook(() => useFollowingFeed(mockWalletAddress));
 
       await waitFor(() => {
@@ -129,8 +129,8 @@ describe('useFollowingFeed', () => {
     });
   });
 
-  describe('error handling', () => {
-    it('should handle errors gracefully', async () => {
+  describe("error handling", () => {
+    it("should handle errors gracefully", async () => {
       const { result } = renderHook(() => useFollowingFeed(mockWalletAddress));
 
       await waitFor(() => {
@@ -139,17 +139,14 @@ describe('useFollowingFeed', () => {
 
       // Error state should be null on successful load
       // or contain error message on failure
-      expect(
-        result.current.error === null || typeof result.current.error === 'string'
-      ).toBe(true);
+      expect(result.current.error === null || typeof result.current.error === "string").toBe(true);
     });
   });
 
-  describe('wallet address changes', () => {
-    it('should reload feed when wallet address changes', async () => {
+  describe("wallet address changes", () => {
+    it("should reload feed when wallet address changes", async () => {
       const { result, rerender } = renderHook(
-        ({ walletAddress }: { walletAddress: string | null }) =>
-          useFollowingFeed(walletAddress),
+        ({ walletAddress }: { walletAddress: string | null }) => useFollowingFeed(walletAddress),
         {
           initialProps: { walletAddress: null },
         }
@@ -168,10 +165,9 @@ describe('useFollowingFeed', () => {
       expect(result.current.posts).toBeDefined();
     });
 
-    it('should clear posts when wallet address is set to null', async () => {
+    it("should clear posts when wallet address is set to null", async () => {
       const { result, rerender } = renderHook(
-        ({ walletAddress }: { walletAddress: string | null }) =>
-          useFollowingFeed(walletAddress),
+        ({ walletAddress }: { walletAddress: string | null }) => useFollowingFeed(walletAddress),
         {
           initialProps: { walletAddress: mockWalletAddress },
         }
@@ -189,8 +185,8 @@ describe('useFollowingFeed', () => {
     });
   });
 
-  describe('data structure', () => {
-    it('should have posts with required Post interface properties', async () => {
+  describe("data structure", () => {
+    it("should have posts with required Post interface properties", async () => {
       const { result } = renderHook(() => useFollowingFeed(mockWalletAddress));
 
       await waitFor(() => {
@@ -200,24 +196,24 @@ describe('useFollowingFeed', () => {
       // If there are posts, verify structure
       if (result.current.posts.length > 0) {
         const post = result.current.posts[0];
-        expect(post).toHaveProperty('id');
-        expect(post).toHaveProperty('author');
-        expect(post).toHaveProperty('content');
-        expect(post).toHaveProperty('tip_total');
-        expect(post).toHaveProperty('timestamp');
-        expect(post).toHaveProperty('like_count');
-        expect(typeof post.id).toBe('number');
-        expect(typeof post.author).toBe('string');
-        expect(typeof post.content).toBe('string');
-        expect(typeof post.tip_total).toBe('number');
-        expect(typeof post.timestamp).toBe('number');
-        expect(typeof post.like_count).toBe('number');
+        expect(post).toHaveProperty("id");
+        expect(post).toHaveProperty("author");
+        expect(post).toHaveProperty("content");
+        expect(post).toHaveProperty("tip_total");
+        expect(post).toHaveProperty("timestamp");
+        expect(post).toHaveProperty("like_count");
+        expect(typeof post.id).toBe("number");
+        expect(typeof post.author).toBe("string");
+        expect(typeof post.content).toBe("string");
+        expect(typeof post.tip_total).toBe("number");
+        expect(typeof post.timestamp).toBe("number");
+        expect(typeof post.like_count).toBe("number");
       }
     });
   });
 
-  describe('posts sorting', () => {
-    it('should have posts sorted by timestamp when available', async () => {
+  describe("posts sorting", () => {
+    it("should have posts sorted by timestamp when available", async () => {
       const { result } = renderHook(() => useFollowingFeed(mockWalletAddress));
 
       await waitFor(() => {

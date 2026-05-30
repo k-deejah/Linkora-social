@@ -7,7 +7,7 @@ import { PostCard, Post } from "../components/PostCard";
 import { TipModal } from "../components/TipModal";
 
 export default function ExplorePage() {
-  const [searchResult, setSearchResult] = useState<any>(null);
+  const [searchResult, setSearchResult] = useState<unknown>(null);
   const [searching, setSearching] = useState(false);
   const [tippingPost, setTippingPost] = useState<{ id: number; author: string } | null>(null);
   const [trendingPosts] = useState<Post[]>([
@@ -72,7 +72,9 @@ export default function ExplorePage() {
 
         {!searchResult && !searching && (
           <div style={styles.noResults}>
-            <span style={styles.noResultsIcon} aria-hidden="true">🔍</span>
+            <span style={styles.noResultsIcon} aria-hidden="true">
+              🔍
+            </span>
             <p>Search for a username to find profiles</p>
           </div>
         )}
@@ -96,11 +98,7 @@ export default function ExplorePage() {
         <section style={styles.section}>
           <h2 style={styles.sectionTitle}>Featured Creators</h2>
           {featuredCreators.map((creator) => (
-            <ProfileCard
-              key={creator.address}
-              profile={creator}
-              onFollow={() => {}}
-            />
+            <ProfileCard key={creator.address} profile={creator} onFollow={() => {}} />
           ))}
         </section>
         {tippingPost && (

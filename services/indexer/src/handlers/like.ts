@@ -25,7 +25,7 @@ export interface LikeEventContext {
 export async function handleLike(
   pool: Pool,
   event: LikePostEvent,
-  context: LikeEventContext,
+  context: LikeEventContext
 ): Promise<void> {
   const { user, post_id } = event;
   const { txHash, timestamp } = context;
@@ -48,9 +48,7 @@ export async function handleLike(
     const insertResult = await client.query(insertLikeQuery, insertValues);
 
     if (insertResult.rowCount === 0) {
-      console.log(
-        `Like already exists for user ${user} on post ${post_id} (idempotent skip)`,
-      );
+      console.log(`Like already exists for user ${user} on post ${post_id} (idempotent skip)`);
       await client.query("COMMIT");
       return;
     }
@@ -66,9 +64,7 @@ export async function handleLike(
     const updateResult = await client.query(updatePostQuery, updateValues);
 
     if (updateResult.rowCount === 0) {
-      console.warn(
-        `Post ${post_id} not found or deleted, like recorded but post not updated`,
-      );
+      console.warn(`Post ${post_id} not found or deleted, like recorded but post not updated`);
     } else {
       console.log(`Like from ${user} added to post ${post_id}`);
     }
@@ -88,7 +84,7 @@ export async function handleLike(
  */
 export function createMockLikeEvent(
   user: string = "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-  post_id: bigint = 1n,
+  post_id: bigint = 1n
 ): { event: LikePostEvent; context: LikeEventContext } {
   return {
     event: { user, post_id },

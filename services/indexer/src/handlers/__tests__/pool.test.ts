@@ -97,11 +97,7 @@ describe("handlePoolDeposit", () => {
 
     await handlePoolDeposit(db, event);
 
-    expect(db.adjustPoolBalance).toHaveBeenCalledWith(
-      "pool2",
-      BigInt("9999999999999999"),
-      400
-    );
+    expect(db.adjustPoolBalance).toHaveBeenCalledWith("pool2", BigInt("9999999999999999"), 400);
   });
 
   // ── Idempotency ─────────────────────────────────────────────────────────────
@@ -310,9 +306,7 @@ describe("handlePoolWithdraw", () => {
       ledger: 250,
     };
 
-    await expect(handlePoolWithdraw(db, event)).rejects.toThrow(
-      "insufficient balance"
-    );
+    await expect(handlePoolWithdraw(db, event)).rejects.toThrow("insufficient balance");
   });
 });
 
@@ -349,19 +343,37 @@ describe("handlePoolCreated", () => {
   });
 
   it("throws when pool_id is missing", async () => {
-    const event = { pool_id: "", token: "GTOKEN", admins: ["GA"], threshold: 1, ledger: 1 } as PoolCreatedEvent;
+    const event = {
+      pool_id: "",
+      token: "GTOKEN",
+      admins: ["GA"],
+      threshold: 1,
+      ledger: 1,
+    } as PoolCreatedEvent;
     await expect(handlePoolCreated(db, event)).rejects.toThrow("pool_id");
     expect(db.insertPool).not.toHaveBeenCalled();
   });
 
   it("throws when admins list is empty", async () => {
-    const event: PoolCreatedEvent = { pool_id: "p1", token: "GT", admins: [], threshold: 1, ledger: 1 };
+    const event: PoolCreatedEvent = {
+      pool_id: "p1",
+      token: "GT",
+      admins: [],
+      threshold: 1,
+      ledger: 1,
+    };
     await expect(handlePoolCreated(db, event)).rejects.toThrow("admin");
     expect(db.insertPool).not.toHaveBeenCalled();
   });
 
   it("throws when threshold exceeds admins length", async () => {
-    const event: PoolCreatedEvent = { pool_id: "p1", token: "GT", admins: ["GA"], threshold: 2, ledger: 1 };
+    const event: PoolCreatedEvent = {
+      pool_id: "p1",
+      token: "GT",
+      admins: ["GA"],
+      threshold: 2,
+      ledger: 1,
+    };
     await expect(handlePoolCreated(db, event)).rejects.toThrow("threshold");
     expect(db.insertPool).not.toHaveBeenCalled();
   });
@@ -406,7 +418,11 @@ describe("handlePoolAdminRemoved", () => {
   });
 
   it("calls db.removePoolAdmin with correct arguments", async () => {
-    const event: PoolAdminRemovedEvent = { pool_id: "pool1", removed_admin: "GADMIN2", ledger: 300 };
+    const event: PoolAdminRemovedEvent = {
+      pool_id: "pool1",
+      removed_admin: "GADMIN2",
+      ledger: 300,
+    };
 
     await handlePoolAdminRemoved(db, event);
 

@@ -23,12 +23,7 @@ describe("Tip Event Handler", () => {
   });
 
   it("should insert tip and increment post tip_total", async () => {
-    const { event, context } = createMockTipEvent(
-      "GTIPPER",
-      1n,
-      1000000n,
-      25000n,
-    );
+    const { event, context } = createMockTipEvent("GTIPPER", 1n, 1000000n, 25000n);
 
     // Mock successful tip insert
     mockQuery.mockResolvedValueOnce({ rowCount: 1 }); // BEGIN
@@ -48,11 +43,11 @@ describe("Tip Event Handler", () => {
         "25000",
         context.timestamp,
         context.txHash,
-      ]),
+      ])
     );
     expect(mockQuery).toHaveBeenCalledWith(
       expect.stringContaining("UPDATE posts"),
-      expect.arrayContaining(["1000000", "1"]),
+      expect.arrayContaining(["1000000", "1"])
     );
     expect(mockQuery).toHaveBeenCalledWith("COMMIT");
     expect(mockRelease).toHaveBeenCalled();
@@ -70,12 +65,12 @@ describe("Tip Event Handler", () => {
     expect(mockQuery).toHaveBeenCalledWith("BEGIN");
     expect(mockQuery).toHaveBeenCalledWith(
       expect.stringContaining("ON CONFLICT (tx_hash) DO NOTHING"),
-      expect.any(Array),
+      expect.any(Array)
     );
     expect(mockQuery).toHaveBeenCalledWith("COMMIT");
     expect(mockQuery).not.toHaveBeenCalledWith(
       expect.stringContaining("UPDATE posts"),
-      expect.any(Array),
+      expect.any(Array)
     );
   });
 
@@ -85,9 +80,7 @@ describe("Tip Event Handler", () => {
     mockQuery.mockResolvedValueOnce({ rowCount: 1 }); // BEGIN
     mockQuery.mockRejectedValueOnce(new Error("DB error")); // INSERT fails
 
-    await expect(handleTip(mockPool, event, context)).rejects.toThrow(
-      "DB error",
-    );
+    await expect(handleTip(mockPool, event, context)).rejects.toThrow("DB error");
 
     expect(mockQuery).toHaveBeenCalledWith("ROLLBACK");
     expect(mockRelease).toHaveBeenCalled();

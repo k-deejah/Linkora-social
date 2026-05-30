@@ -166,8 +166,6 @@ describe("handleProfileSet", () => {
       ledger: 1000,
     };
 
-    await expect(handleProfileSet(db, event)).rejects.toThrow(
-      "DB connection lost"
-    );
+    await expect(handleProfileSet(db, event)).rejects.toThrow("DB connection lost");
   });
 });

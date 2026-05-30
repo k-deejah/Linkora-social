@@ -27,7 +27,9 @@ export function createPostsRouter(db: Database): Router {
       return;
     }
     if (!Number.isInteger(rawOffset) || rawOffset < 0) {
-      res.status(400).json({ error: "offset must be a non-negative integer", code: "INVALID_QUERY" });
+      res
+        .status(400)
+        .json({ error: "offset must be a non-negative integer", code: "INVALID_QUERY" });
       return;
     }
 

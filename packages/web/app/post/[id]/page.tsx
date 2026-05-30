@@ -17,7 +17,7 @@ interface Post {
 
 export default function PostPage() {
   const params = useParams();
-  const router = useRouter();
+  const _router = useRouter();
   const postId = Number(params.id);
 
   const { publicKey, isConnected } = useWallet();
@@ -47,7 +47,8 @@ export default function PostPage() {
       setPost({
         id: postId,
         author: "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-        content: "This is a sample post content loaded from the blockchain. It demonstrates how the post detail page displays all the information including the author, timestamp, likes, and tips.",
+        content:
+          "This is a sample post content loaded from the blockchain. It demonstrates how the post detail page displays all the information including the author, timestamp, likes, and tips.",
         tip_total: 50000000,
         timestamp: Date.now() / 1000 - 3600,
         like_count: 12,
@@ -67,7 +68,7 @@ export default function PostPage() {
 
       setHasLiked((prev) => !prev);
       setPost((prev) =>
-        prev ? { ...prev, like_count: prev.like_count + (hasLiked ? -1 : 1) } : prev,
+        prev ? { ...prev, like_count: prev.like_count + (hasLiked ? -1 : 1) } : prev
       );
     } catch (err) {
       console.error("Failed to like post:", err);
@@ -100,7 +101,7 @@ export default function PostPage() {
                 ...prev,
                 tip_total: prev.tip_total + amount * 10_000_000,
               }
-            : prev,
+            : prev
         );
 
         setTipToken("");
@@ -111,7 +112,7 @@ export default function PostPage() {
         setIsTipping(false);
       }
     },
-    [isConnected, tipToken, tipAmount, postId],
+    [isConnected, tipToken, tipAmount, postId]
   );
 
   const formatAddress = (addr: string) => {
@@ -159,10 +160,7 @@ export default function PostPage() {
         <div style={styles.header}>
           <div style={styles.avatar}></div>
           <div style={styles.authorInfo}>
-            <Link
-              href={`/profile/${post.author}`}
-              style={styles.username}
-            >
+            <Link href={`/profile/${post.author}`} style={styles.username}>
               {post.username || formatAddress(post.author)}
             </Link>
             <div style={styles.timestamp}>{formatTimestamp(post.timestamp)}</div>
@@ -228,9 +226,7 @@ export default function PostPage() {
               disabled={isTipping || !tipToken || !tipAmount}
               style={{
                 ...styles.tipButton,
-                ...(isTipping || !tipToken || !tipAmount
-                  ? styles.tipButtonDisabled
-                  : {}),
+                ...(isTipping || !tipToken || !tipAmount ? styles.tipButtonDisabled : {}),
               }}
             >
               {isTipping ? "Sending..." : "Send Tip"}

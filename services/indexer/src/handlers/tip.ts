@@ -27,7 +27,7 @@ export interface TipEventContext {
 export async function handleTip(
   pool: Pool,
   event: TipEvent,
-  context: TipEventContext,
+  context: TipEventContext
 ): Promise<void> {
   const { tipper, post_id, amount, fee } = event;
   const { txHash, timestamp } = context;
@@ -73,9 +73,7 @@ export async function handleTip(
     const updateResult = await client.query(updatePostQuery, updateValues);
 
     if (updateResult.rowCount === 0) {
-      console.warn(
-        `Post ${post_id} not found or deleted, tip recorded but post not updated`,
-      );
+      console.warn(`Post ${post_id} not found or deleted, tip recorded but post not updated`);
     } else {
       console.log(`Tip of ${amount} from ${tipper} added to post ${post_id}`);
     }
@@ -97,7 +95,7 @@ export function createMockTipEvent(
   tipper: string = "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
   post_id: bigint = 1n,
   amount: bigint = 1000000n,
-  fee: bigint = 25000n,
+  fee: bigint = 25000n
 ): { event: TipEvent; context: TipEventContext } {
   return {
     event: { tipper, post_id, amount, fee },

@@ -1,50 +1,50 @@
-import { Stack, useRouter } from 'expo-router'
-import { useEffect } from 'react'
-import { Linking } from 'react-native'
+import { Stack, useRouter } from "expo-router";
+import { useEffect } from "react";
+import { Linking } from "react-native";
 
-import { parseDeepLink } from '../utils/deepLinks'
+import { parseDeepLink } from "../utils/deepLinks";
 
 export default function RootLayout() {
-    const router = useRouter()
+  const router = useRouter();
 
-    useEffect(() => {
-        let isMounted = true
+  useEffect(() => {
+    let isMounted = true;
 
-        async function handleInitialUrl() {
-            let initialUrl: string | null = null
+    async function handleInitialUrl() {
+      let initialUrl: string | null = null;
 
-            try {
-                initialUrl = await Linking.getInitialURL()
-            } catch {
-                return
-            }
+      try {
+        initialUrl = await Linking.getInitialURL();
+      } catch {
+        return;
+      }
 
-            if (isMounted && initialUrl) {
-                handleDeepLink(initialUrl)
-            }
-        }
+      if (isMounted && initialUrl) {
+        handleDeepLink(initialUrl);
+      }
+    }
 
-        function handleDeepLink(url: string) {
-            const deepLink = parseDeepLink(url)
+    function handleDeepLink(url: string) {
+      const deepLink = parseDeepLink(url);
 
-            if (!deepLink) {
-                return
-            }
+      if (!deepLink) {
+        return;
+      }
 
-            router.push(deepLink.path)
-        }
+      router.push(deepLink.path);
+    }
 
-        const subscription = Linking.addEventListener('url', ({ url }) => {
-            handleDeepLink(url)
-        })
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      handleDeepLink(url);
+    });
 
-        handleInitialUrl()
+    handleInitialUrl();
 
-        return () => {
-            isMounted = false
-            subscription.remove()
-        }
-    }, [router])
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, [router]);
 
-    return <Stack />
+  return <Stack />;
 }

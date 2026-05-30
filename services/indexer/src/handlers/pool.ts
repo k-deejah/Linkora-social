@@ -56,10 +56,7 @@ export interface PoolAdminRemovedEvent {
  * insertPool must be implemented as an INSERT … ON CONFLICT DO NOTHING
  * (or equivalent) so duplicate events are silently ignored.
  */
-export async function handlePoolCreated(
-  db: Database,
-  event: PoolCreatedEvent
-): Promise<void> {
+export async function handlePoolCreated(db: Database, event: PoolCreatedEvent): Promise<void> {
   if (!event.pool_id) {
     throw new Error("PoolCreated event missing required field: pool_id");
   }
@@ -92,10 +89,7 @@ export async function handlePoolCreated(
  * primary key and the balance adjustment is additive, so callers must
  * ensure events are not replayed (use the ledger watermark).
  */
-export async function handlePoolDeposit(
-  db: Database,
-  event: PoolDepositEvent
-): Promise<void> {
+export async function handlePoolDeposit(db: Database, event: PoolDepositEvent): Promise<void> {
   if (!event.pool_id) {
     throw new Error("PoolDeposit event missing required field: pool_id");
   }
@@ -111,10 +105,7 @@ export async function handlePoolDeposit(
  *
  * Subtracts the withdrawn amount from the pool's running balance.
  */
-export async function handlePoolWithdraw(
-  db: Database,
-  event: PoolWithdrawEvent
-): Promise<void> {
+export async function handlePoolWithdraw(db: Database, event: PoolWithdrawEvent): Promise<void> {
   if (!event.pool_id) {
     throw new Error("PoolWithdraw event missing required field: pool_id");
   }

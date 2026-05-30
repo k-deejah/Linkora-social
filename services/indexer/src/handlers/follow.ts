@@ -23,10 +23,7 @@ export interface UnfollowEvent {
  * Idempotent: the underlying upsert on (follower, followee) is safe to
  * replay.
  */
-export async function handleFollow(
-  db: Database,
-  event: FollowEvent
-): Promise<void> {
+export async function handleFollow(db: Database, event: FollowEvent): Promise<void> {
   if (!event.follower) {
     throw new Error("Follow event missing required field: follower");
   }
@@ -47,10 +44,7 @@ export async function handleFollow(
  * Removes the directed edge (follower → followee) from the follow graph.
  * Idempotent: deleting a non-existent edge is a no-op.
  */
-export async function handleUnfollow(
-  db: Database,
-  event: UnfollowEvent
-): Promise<void> {
+export async function handleUnfollow(db: Database, event: UnfollowEvent): Promise<void> {
   if (!event.follower) {
     throw new Error("Unfollow event missing required field: follower");
   }

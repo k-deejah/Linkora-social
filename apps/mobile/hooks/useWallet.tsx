@@ -1,5 +1,12 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import * as secureStorage from '../utils/secureStorage';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  ReactNode,
+} from "react";
+import * as secureStorage from "../utils/secureStorage";
 
 // Mock Stellar Wallet Kit types for now
 interface WalletKit {
@@ -11,12 +18,7 @@ interface WalletKit {
   onNetworkChange(callback: (network: string) => void): void;
 }
 
-export type WalletState = 
-  | 'loading'
-  | 'disconnected' 
-  | 'connecting'
-  | 'connected'
-  | 'error';
+export type WalletState = "loading" | "disconnected" | "connecting" | "connected" | "error";
 
 export interface WalletInfo {
   address: string | null;
@@ -43,7 +45,7 @@ const WalletContext = createContext<WalletContextType | null>(null);
 export function useWallet(): WalletContextType {
   const context = useContext(WalletContext);
   if (!context) {
-    throw new Error('useWallet must be used within a WalletProvider');
+    throw new Error("useWallet must be used within a WalletProvider");
   }
   return context;
 }
@@ -53,7 +55,7 @@ interface WalletProviderProps {
 }
 
 export function WalletProvider({ children }: WalletProviderProps): JSX.Element {
-  const [state, setState] = useState<WalletState>('loading');
+  const [state, setState] = useState<WalletState>("loading");
   const [wallet, setWallet] = useState<WalletInfo>({
     address: null,
     network: null,
@@ -66,13 +68,13 @@ export function WalletProvider({ children }: WalletProviderProps): JSX.Element {
     const initWalletKit = async () => {
       try {
         // In a real implementation, this would import and initialize Stellar Wallet Kit
-        const { WalletKit } = await import('@stellar/wallet-kit');
+        const { WalletKit } = await import("@stellar/wallet-kit");
         const kit = new WalletKit() as WalletKit;
         setWalletKit(kit);
       } catch (err) {
-        console.error('Failed to initialize wallet kit:', err);
-        setState('error');
-        setError('Wallet kit not available');
+        console.error("Failed to initialize wallet kit:", err);
+        setState("error");
+        setError("Wallet kit not available");
       }
     };
 
@@ -84,7 +86,7 @@ export function WalletProvider({ children }: WalletProviderProps): JSX.Element {
     if (!walletKit) return;
 
     try {
-      setState('loading');
+      setState("loading");
       setError(null);
 
       // Check if we have stored connection state
@@ -94,17 +96,17 @@ export function WalletProvider({ children }: WalletProviderProps): JSX.Element {
       if (storedAddress && storedConnectionState) {
         // Verify the connection is still valid
         const isConnected = await walletKit.isConnected();
-        
+
         if (isConnected) {
           const currentAddress = await walletKit.getPublicKey();
-          
+
           if (currentAddress === storedAddress) {
             // Connection is valid, restore state
             setWallet({
               address: currentAddress,
-              network: 'TESTNET', // TODO: Get actual network
+              network: "TESTNET", // TODO: Get actual network
             });
-            setState('connected');
+            setState("connected");
             return;
           }
         }
@@ -115,12 +117,12 @@ export function WalletProvider({ children }: WalletProviderProps): JSX.Element {
       }
 
       // No valid connection
-      setState('disconnected');
+      setState("disconnected");
       setWallet({ address: null, network: null });
     } catch (err) {
-      console.error('Error checking connection state:', err);
-      setState('error');
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      console.error("Error checking connection state:", err);
+      setState("error");
+      setError(err instanceof Error ? err.message : "Unknown error");
     }
   }, [walletKit]);
 
@@ -133,13 +135,13 @@ export function WalletProvider({ children }: WalletProviderProps): JSX.Element {
 
   const connect = useCallback(async () => {
     if (!walletKit) {
-      setError('Wallet kit not available');
-      setState('error');
+      setError("Wallet kit not available");
+      setState("error");
       return;
     }
 
     try {
-      setState('connecting');
+      setState("connecting");
       setError(null);
 
       // Attempt to connect
@@ -147,7 +149,7 @@ export function WalletProvider({ children }: WalletProviderProps): JSX.Element {
       const address = result.publicKey;
 
       if (!address) {
-        throw new Error('No address returned from wallet');
+        throw new Error("No address returned from wallet");
       }
 
       // Store connection state
@@ -165,14 +167,14 @@ export function WalletProvider({ children }: WalletProviderProps): JSX.Element {
       // Update context state
       setWallet({
         address,
-        network: 'TESTNET', // TODO: Get actual network
+        network: "TESTNET", // TODO: Get actual network
       });
-      setState('connected');
+      setState("connected");
     } catch (err) {
-      console.error('Connection failed:', err);
-      setState('error');
-      setError(err instanceof Error ? err.message : 'Connection failed');
-      
+      console.error("Connection failed:", err);
+      setState("error");
+      setError(err instanceof Error ? err.message : "Connection failed");
+
       // Clear any partial state
       setWallet({ address: null, network: null });
     }
@@ -195,13 +197,13 @@ export function WalletProvider({ children }: WalletProviderProps): JSX.Element {
 
       // Update context state
       setWallet({ address: null, network: null });
-      setState('disconnected');
+      setState("disconnected");
     } catch (err) {
-      console.error('Disconnect failed:', err);
+      console.error("Disconnect failed:", err);
       // Even if disconnect fails, clear local state
       setWallet({ address: null, network: null });
-      setState('disconnected');
-      
+      setState("disconnected");
+
       // Clear stored state anyway
       await Promise.all([
         secureStorage.deleteWalletAddress(),
@@ -223,9 +225,5 @@ export function WalletProvider({ children }: WalletProviderProps): JSX.Element {
     refresh,
   };
 
-  return (
-    <WalletContext.Provider value={contextValue}>
-      {children}
-    </WalletContext.Provider>
-  );
+  return <WalletContext.Provider value={contextValue}>{children}</WalletContext.Provider>;
 }

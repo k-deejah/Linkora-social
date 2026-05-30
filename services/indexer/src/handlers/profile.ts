@@ -20,10 +20,7 @@ export interface ProfileSetEvent {
  * Idempotent: calling this multiple times with the same data produces the
  * same result (upsert semantics).
  */
-export async function handleProfileSet(
-  db: Database,
-  event: ProfileSetEvent
-): Promise<void> {
+export async function handleProfileSet(db: Database, event: ProfileSetEvent): Promise<void> {
   if (!event.user) {
     throw new Error("ProfileSet event missing required field: user");
   }

@@ -30,14 +30,7 @@ describe("Post Event Handlers", () => {
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("INSERT INTO posts"),
-        expect.arrayContaining([
-          "1",
-          "GTEST123",
-          "Test post content",
-          0,
-          0,
-          context.timestamp,
-        ]),
+        expect.arrayContaining(["1", "GTEST123", "Test post content", 0, 0, context.timestamp])
       );
     });
 
@@ -49,7 +42,7 @@ describe("Post Event Handlers", () => {
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("ON CONFLICT (id) DO NOTHING"),
-        expect.any(Array),
+        expect.any(Array)
       );
     });
 
@@ -57,9 +50,7 @@ describe("Post Event Handlers", () => {
       const { event, context } = createMockPostCreatedEvent();
       mockQuery.mockRejectedValueOnce(new Error("DB error"));
 
-      await expect(handlePostCreated(mockPool, event, context)).rejects.toThrow(
-        "DB error",
-      );
+      await expect(handlePostCreated(mockPool, event, context)).rejects.toThrow("DB error");
     });
   });
 
@@ -72,7 +63,7 @@ describe("Post Event Handlers", () => {
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("UPDATE posts"),
-        expect.arrayContaining([context.timestamp, "1", "GTEST123"]),
+        expect.arrayContaining([context.timestamp, "1", "GTEST123"])
       );
     });
 
@@ -84,7 +75,7 @@ describe("Post Event Handlers", () => {
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining("deleted_at IS NULL"),
-        expect.any(Array),
+        expect.any(Array)
       );
     });
 
@@ -92,9 +83,7 @@ describe("Post Event Handlers", () => {
       const { event, context } = createMockPostDeletedEvent();
       mockQuery.mockRejectedValueOnce(new Error("DB error"));
 
-      await expect(handlePostDeleted(mockPool, event, context)).rejects.toThrow(
-        "DB error",
-      );
+      await expect(handlePostDeleted(mockPool, event, context)).rejects.toThrow("DB error");
     });
   });
 });

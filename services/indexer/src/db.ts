@@ -86,7 +86,19 @@ export interface Database {
 
   // Query methods used by the REST API
   getProfile(address: string): Promise<Profile | null>;
-  listPosts(filters: { author?: string; limit: number; offset: number }): Promise<{ posts: Post[]; total: number }>;
-  getFollowers(address: string, limit: number, offset: number): Promise<{ followers: string[]; total: number }>;
-  getFollowing(address: string, limit: number, offset: number): Promise<{ following: string[]; total: number }>;
+  listPosts(filters: {
+    author?: string;
+    limit: number;
+    offset: number;
+  }): Promise<{ posts: Post[]; total: number }>;
+  getFollowers(
+    address: string,
+    limit: number,
+    offset: number
+  ): Promise<{ followers: string[]; total: number }>;
+  getFollowing(
+    address: string,
+    limit: number,
+    offset: number
+  ): Promise<{ following: string[]; total: number }>;
 }

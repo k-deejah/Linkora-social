@@ -23,16 +23,14 @@ export default function PoolDetailPage() {
   const params = useParams();
   const poolId = typeof params.id === "string" ? params.id : null;
   const { publicKey, isConnected } = useWallet();
-  const { pool, state, error, refresh } = usePool(poolId);
+  const { pool, state, error: _error, refresh } = usePool(poolId);
   const tokenMeta = useTokenMeta(pool?.token ?? null);
   const [activeTab, setActiveTab] = useState<Tab>("deposit");
 
   const decimals = tokenMeta?.decimals ?? 7;
   const symbol = tokenMeta?.symbol ?? "TOKEN";
   const isEmpty = pool ? pool.balance === BigInt(0) : false;
-  const isAdmin = pool && publicKey
-    ? pool.admins.some((a) => a === publicKey)
-    : false;
+  const isAdmin = pool && publicKey ? pool.admins.some((a) => a === publicKey) : false;
 
   // ── Loading ───────────────────────────────────────────────────────────────
 
@@ -50,7 +48,9 @@ export default function PoolDetailPage() {
     return (
       <main style={styles.main}>
         <div style={styles.container}>
-          <Link href="/pools" style={styles.back}>← Back to pools</Link>
+          <Link href="/pools" style={styles.back}>
+            ← Back to pools
+          </Link>
           <PoolEmptyState variant="not-found" poolId={poolId ?? ""} />
         </div>
       </main>
@@ -64,15 +64,21 @@ export default function PoolDetailPage() {
       <div style={styles.container}>
         {/* Breadcrumb */}
         <nav style={styles.breadcrumb} aria-label="Breadcrumb">
-          <Link href="/pools" style={styles.breadcrumbLink}>Pools</Link>
-          <span style={styles.breadcrumbSep} aria-hidden="true">/</span>
+          <Link href="/pools" style={styles.breadcrumbLink}>
+            Pools
+          </Link>
+          <span style={styles.breadcrumbSep} aria-hidden="true">
+            /
+          </span>
           <span style={styles.breadcrumbCurrent}>{pool.pool_id}</span>
         </nav>
 
         {/* Page header */}
         <header style={styles.pageHeader}>
           <div style={styles.pageHeaderLeft}>
-            <div style={styles.poolIconLarge} aria-hidden="true">🏦</div>
+            <div style={styles.poolIconLarge} aria-hidden="true">
+              🏦
+            </div>
             <div>
               <h1 style={styles.poolTitle}>{pool.pool_id}</h1>
               <div style={styles.poolMeta}>
@@ -82,9 +88,7 @@ export default function PoolDetailPage() {
                   total={pool.admins.length}
                   variant="compact"
                 />
-                {isAdmin && (
-                  <span style={styles.adminBadge}>Admin</span>
-                )}
+                {isAdmin && <span style={styles.adminBadge}>Admin</span>}
               </div>
             </div>
           </div>
@@ -121,9 +125,7 @@ export default function PoolDetailPage() {
               <div style={styles.statRow}>
                 <span style={styles.statLabel}>Token</span>
                 <div style={styles.tokenInfo}>
-                  {tokenMeta && (
-                    <span style={styles.tokenSymbolBadge}>{tokenMeta.symbol}</span>
-                  )}
+                  {tokenMeta && <span style={styles.tokenSymbolBadge}>{tokenMeta.symbol}</span>}
                   <span style={styles.tokenAddr} title={pool.token}>
                     {truncateAddress(pool.token)}
                   </span>
@@ -154,11 +156,7 @@ export default function PoolDetailPage() {
 
             {/* Admin list */}
             <div style={styles.adminCard}>
-              <AdminList
-                admins={pool.admins}
-                threshold={pool.threshold}
-                currentUser={publicKey}
-              />
+              <AdminList admins={pool.admins} threshold={pool.threshold} currentUser={publicKey} />
             </div>
           </aside>
 
@@ -166,7 +164,9 @@ export default function PoolDetailPage() {
           <section style={styles.rightCol} aria-label="Pool actions">
             {!isConnected ? (
               <div style={styles.walletGate}>
-                <span style={styles.walletIcon} aria-hidden="true">🔒</span>
+                <span style={styles.walletIcon} aria-hidden="true">
+                  🔒
+                </span>
                 <p style={styles.walletTitle}>Connect wallet to interact</p>
                 <p style={styles.walletBody}>
                   Connect Freighter to deposit or withdraw from this pool.
@@ -291,21 +291,70 @@ function StatusBadge({ isEmpty }: { isEmpty: boolean }) {
 function PoolDetailSkeleton() {
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
-      <div style={{ width: "120px", height: "14px", borderRadius: "9999px", background: "var(--color-surface-2)", marginBottom: "var(--space-6)" }} />
-      <div style={{ display: "flex", gap: "var(--space-4)", marginBottom: "var(--space-8)", alignItems: "center" }}>
-        <div style={{ width: "48px", height: "48px", borderRadius: "50%", background: "var(--color-surface-2)" }} />
+      <div
+        style={{
+          width: "120px",
+          height: "14px",
+          borderRadius: "9999px",
+          background: "var(--color-surface-2)",
+          marginBottom: "var(--space-6)",
+        }}
+      />
+      <div
+        style={{
+          display: "flex",
+          gap: "var(--space-4)",
+          marginBottom: "var(--space-8)",
+          alignItems: "center",
+        }}
+      >
+        <div
+          style={{
+            width: "48px",
+            height: "48px",
+            borderRadius: "50%",
+            background: "var(--color-surface-2)",
+          }}
+        />
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          <div style={{ width: "160px", height: "24px", borderRadius: "9999px", background: "var(--color-surface-2)" }} />
-          <div style={{ width: "100px", height: "16px", borderRadius: "9999px", background: "var(--color-surface-2)" }} />
+          <div
+            style={{
+              width: "160px",
+              height: "24px",
+              borderRadius: "9999px",
+              background: "var(--color-surface-2)",
+            }}
+          />
+          <div
+            style={{
+              width: "100px",
+              height: "16px",
+              borderRadius: "9999px",
+              background: "var(--color-surface-2)",
+            }}
+          />
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: "var(--space-6)" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
           {[1, 2, 3].map((i) => (
-            <div key={i} style={{ height: "80px", borderRadius: "var(--radius-xl)", background: "var(--color-surface-2)" }} />
+            <div
+              key={i}
+              style={{
+                height: "80px",
+                borderRadius: "var(--radius-xl)",
+                background: "var(--color-surface-2)",
+              }}
+            />
           ))}
         </div>
-        <div style={{ height: "400px", borderRadius: "var(--radius-xl)", background: "var(--color-surface-2)" }} />
+        <div
+          style={{
+            height: "400px",
+            borderRadius: "var(--radius-xl)",
+            background: "var(--color-surface-2)",
+          }}
+        />
       </div>
     </div>
   );
