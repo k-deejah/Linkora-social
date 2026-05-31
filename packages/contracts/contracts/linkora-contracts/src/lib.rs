@@ -11,6 +11,23 @@ const POST_CT: Symbol = symbol_short!("POST_CT");
 const PROFILES: Symbol = symbol_short!("PROFILES");
 const FOLLOWS: Symbol = symbol_short!("FOLLOWS");
 const POOLS: Symbol = symbol_short!("POOLS");
+const BLOCKS: Symbol = symbol_short!("BLOCKS");
+
+// ── Events ───────────────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone)]
+pub struct BlockEvent {
+    pub blocker: Address,
+    pub blocked: Address,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct UnblockEvent {
+    pub blocker: Address,
+    pub blocked: Address,
+}
 
 // ── Data Types ───────────────────────────────────────────────────────────────
 
@@ -97,6 +114,60 @@ impl LinkoraContract {
         env.storage()
             .persistent()
             .get(&(FOLLOWS, user))
+            .unwrap_or(Vec::new(&env))
+    }
+
+    // ── Blocking ──────────────────────────────────────────────────────────────
+
+    /// Block a user. Emits `BlockEvent { blocker, blocked }`.
+    pub fn block_user(env: Env, blocker: Address, blocked: Address) {
+        blocker.require_auth();
+        let key = (BLOCKS, blocker.clone());
+        let mut list: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Vec::new(&env));
+        if !list.contains(&blocked) {
+            list.push_back(blocked.clone());
+        }
+        env.storage().persistent().set(&key, &list);
+        env.events().publish(
+            (symbol_short!("block"),),
+            BlockEvent {
+                blocker,
+                blocked,
+            },
+        );
+    }
+
+    /// Unblock a user. Emits `UnblockEvent { blocker, blocked }`.
+    pub fn unblock_user(env: Env, blocker: Address, blocked: Address) {
+        blocker.require_auth();
+        let key = (BLOCKS, blocker.clone());
+        let mut list: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(Vec::new(&env));
+        list = list
+            .iter()
+            .filter(|a| a != blocked)
+            .collect::<Vec<Address>>();
+        env.storage().persistent().set(&key, &list);
+        env.events().publish(
+            (symbol_short!("unblock"),),
+            UnblockEvent {
+                blocker,
+                blocked,
+            },
+        );
+    }
+
+    pub fn get_blocked(env: Env, user: Address) -> Vec<Address> {
+        env.storage()
+            .persistent()
+            .get(&(BLOCKS, user))
             .unwrap_or(Vec::new(&env))
     }
 
