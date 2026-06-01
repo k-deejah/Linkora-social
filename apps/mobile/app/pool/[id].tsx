@@ -1,9 +1,9 @@
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
-
-import { PoolWithdrawForm } from "../../components/PoolWithdrawForm";
-import { usePoolRecord } from "../../utils/poolStore";
+import { Text, StyleSheet, ScrollView, View, ActivityIndicator, TouchableOpacity } from "react-native";
+import { useLocalSearchParams } from "expo-router";
+import { useWallet } from "../../hooks/useWallet";
+import { usePool } from "../../hooks/usePool";
+import { PoolDepositForm } from "../../components/PoolDepositForm";
 
 type PoolParams = {
   id: string;
@@ -12,66 +12,96 @@ type PoolParams = {
 export default function PoolDetailScreen(): JSX.Element {
   const router = useRouter();
   const { id } = useLocalSearchParams<PoolParams>();
-  const poolId = Array.isArray(id) ? id[0] : id ?? "";
-  const pool = usePoolRecord(poolId);
+  const { wallet } = useWallet();
+  const { pool, loading, error, isAdmin, refresh } = usePool(id || "");
+
+  if (!id) {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <Text style={styles.error}>Pool ID not found</Text>
+      </ScrollView>
+    );
+  }
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContainer]}>
+        <ActivityIndicator size="large" color="#6366f1" />
+      </View>
+    );
+  }
+
+  if (error || !pool) {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <Text style={styles.error}>{error || "Pool not found"}</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={refresh}
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading pool"
+        >
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  }
+
+  const isCurrentUserAdmin = wallet.address ? isAdmin(wallet.address) : false;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.eyebrow}>Pool</Text>
-      <Text style={styles.title}>{pool.name}</Text>
-      <Text style={styles.subtitle}>{pool.description}</Text>
+      <Text style={styles.label}>Pool Details</Text>
+      <Text style={styles.id}>{pool.pool_id}</Text>
 
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
-          <View>
-            <Text style={styles.summaryLabel}>Balance</Text>
-            <Text style={styles.summaryValue}>{pool.balance}</Text>
-          </View>
-          <View>
-            <Text style={styles.summaryLabel}>Threshold</Text>
-            <Text style={styles.summaryValue}>{pool.threshold} sigs</Text>
-          </View>
-        </View>
-        <View style={styles.adminList}>
-          <Text style={styles.summaryLabel}>Admins</Text>
-          {pool.admins.map((admin) => (
-            <Text key={admin} style={styles.adminAddress}>
-              {admin.slice(0, 10)}...{admin.slice(-6)}
-            </Text>
-          ))}
-        </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Token</Text>
+        <Text style={styles.sectionValue}>{pool.token}</Text>
       </View>
 
-      <PoolWithdrawForm poolId={poolId} />
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Balance</Text>
+        <Text style={styles.sectionValue}>{pool.balance.toString()}</Text>
+      </View>
 
-      <View style={styles.historyCard}>
-        <View style={styles.historyHeader}>
-          <Text style={styles.historyTitle}>Recent withdrawals</Text>
-          <Pressable
-            onPress={() => router.push(`/pool/${encodeURIComponent(poolId)}/admins` as Parameters<
-              typeof router.push
-            >[0])}
-            style={styles.historyButton}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Admins ({pool.admins.length})</Text>
+        {pool.admins.map((admin, index) => (
+          <View key={index} style={styles.adminItem}>
+            <Text style={styles.adminAddress}>{admin.slice(0, 10)}...{admin.slice(-8)}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Threshold</Text>
+        <Text style={styles.sectionValue}>{pool.threshold}</Text>
+      </View>
+
+      <PoolDepositForm poolId={pool.pool_id} token={pool.token} />
+
+      {isCurrentUserAdmin && (
+        <View style={styles.adminSection}>
+          <Text style={styles.adminSectionTitle}>Admin Controls</Text>
+          <Text style={styles.adminNote}>You are an admin of this pool</Text>
+          <TouchableOpacity
+            style={styles.adminButton}
+            accessibilityRole="button"
+            accessibilityLabel="Withdraw from pool"
+            disabled={true}
           >
-            <Text style={styles.historyButtonText}>Manage admins</Text>
-          </Pressable>
+            <Text style={styles.adminButtonText}>Withdraw (Coming Soon)</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.adminButton}
+            accessibilityRole="button"
+            accessibilityLabel="Manage admins"
+            disabled={true}
+          >
+            <Text style={styles.adminButtonText}>Manage Admins (Coming Soon)</Text>
+          </TouchableOpacity>
         </View>
-
-        {pool.withdrawals.length > 0 ? (
-          pool.withdrawals.map((withdrawal) => (
-            <View key={withdrawal.id} style={styles.withdrawalRow}>
-              <Text style={styles.withdrawalRecipient}>
-                {withdrawal.recipient.slice(0, 10)}...{withdrawal.recipient.slice(-6)}
-              </Text>
-              <Text style={styles.withdrawalAmount}>
-                {withdrawal.amount} · {withdrawal.approvals.length} approvals
-              </Text>
-            </View>
-          ))
-        ) : (
-          <Text style={styles.emptyHistory}>No withdrawals yet.</Text>
-        )}
-      </View>
+      )}
     </ScrollView>
   );
 }
@@ -81,23 +111,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0f172a",
   },
+  centerContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
   content: {
     padding: 24,
-    paddingBottom: 40,
-  },
-  eyebrow: {
-    color: "#818cf8",
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 8,
-  },
-  title: {
-    color: "#f8fafc",
-    fontSize: 28,
-    fontWeight: "900",
-    marginBottom: 10,
+    paddingBottom: 48,
   },
   subtitle: {
     color: "#94a3b8",
@@ -171,24 +191,84 @@ const styles = StyleSheet.create({
     color: "#e2e8f0",
     fontSize: 12,
     fontWeight: "700",
+    color: "#f1f5f9",
+    marginBottom: 24,
+    fontFamily: "monospace",
   },
-  withdrawalRow: {
-    paddingVertical: 10,
+  section: {
+    marginBottom: 20,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#1f2937",
+    borderBottomColor: "#334155",
   },
-  withdrawalRecipient: {
-    color: "#e2e8f0",
-    fontSize: 13,
+  sectionTitle: {
+    fontSize: 12,
+    color: "#64748b",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  sectionValue: {
+    fontSize: 16,
+    color: "#cbd5e1",
+    fontWeight: "500",
+  },
+  adminItem: {
+    paddingVertical: 8,
+  },
+  adminAddress: {
+    fontSize: 14,
+    color: "#cbd5e1",
     fontFamily: "monospace",
     marginBottom: 4,
   },
-  withdrawalAmount: {
-    color: "#94a3b8",
-    fontSize: 12,
+  adminSection: {
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#334155",
   },
-  emptyHistory: {
-    color: "#94a3b8",
-    fontSize: 13,
+  adminSectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#f1f5f9",
+    marginBottom: 8,
+  },
+  adminNote: {
+    fontSize: 12,
+    color: "#6366f1",
+    marginBottom: 12,
+    fontStyle: "italic",
+  },
+  adminButton: {
+    backgroundColor: "#334155",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    opacity: 0.6,
+  },
+  adminButtonText: {
+    color: "#cbd5e1",
+    fontSize: 14,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  error: {
+    fontSize: 14,
+    color: "#fca5a5",
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: "#6366f1",
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    alignSelf: "flex-start",
+  },
+  retryButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

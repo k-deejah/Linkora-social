@@ -40,6 +40,8 @@ export const PoolCard: React.FC<PoolCardProps> = ({
       style={styles.container}
       onPress={onPress}
       testID={`pool-card-${id}`}
+      accessibilityRole="button"
+      accessibilityLabel={`Pool ${name} with balance ${totalValue}`}
     >
       <View style={styles.header}>
         <Text style={styles.name}>{name}</Text>
@@ -52,7 +54,7 @@ export const PoolCard: React.FC<PoolCardProps> = ({
           <Text style={styles.statValue}>{totalValue}</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={styles.statLabel}>Participants</Text>
+          <Text style={styles.statLabel}>Admins</Text>
           <Text style={styles.statValue}>{participants}</Text>
         </View>
       </View>
@@ -62,24 +64,15 @@ export const PoolCard: React.FC<PoolCardProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1e293b',
     borderRadius: 12,
     padding: 20,
-    marginVertical: 8,
-    marginHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 8,
+    marginVertical: 4,
     borderWidth: 1,
-    borderColor: '#f0f0f0',
+    borderColor: '#334155',
   },
   loadingContainer: {
-    backgroundColor: '#f8f8f8',
+    opacity: 0.6,
   },
   header: {
     flexDirection: 'row',
@@ -90,21 +83,21 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1a1a1a',
+    color: '#f1f5f9',
     flex: 1,
   },
   apy: {
     fontSize: 14,
     fontWeight: '600',
     color: '#22c55e',
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#1e4c2b',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
   description: {
     fontSize: 14,
-    color: '#666',
+    color: '#cbd5e1',
     lineHeight: 20,
     marginBottom: 16,
   },
@@ -117,16 +110,16 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12,
-    color: '#888',
+    color: '#64748b',
     marginBottom: 4,
   },
   statValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#cbd5e1',
   },
   loadingBar: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: '#334155',
     borderRadius: 4,
     marginBottom: 12,
   },
