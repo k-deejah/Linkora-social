@@ -9,6 +9,35 @@ export interface MiniAppBridgeOptions {
   handlers?: Partial<Record<BridgePermission, BridgeHandler>>;
 }
 
+interface PendingRequest {
+  resolve: (value: unknown) => void;
+  reject: (reason: unknown) => void;
+}
+
+const pendingRequests = new Map<string, PendingRequest>();
+
+export function registerPendingRequest(requestId: string): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    pendingRequests.set(requestId, { resolve, reject });
+  });
+}
+
+export function resolvePendingRequest(requestId: string, result: unknown): void {
+  const pending = pendingRequests.get(requestId);
+  if (pending) {
+    pending.resolve(result);
+    pendingRequests.delete(requestId);
+  }
+}
+
+export function rejectPendingRequest(requestId: string, error: Error): void {
+  const pending = pendingRequests.get(requestId);
+  if (pending) {
+    pending.reject(error);
+    pendingRequests.delete(requestId);
+  }
+}
+
 const DEFAULT_HANDLERS: Partial<Record<BridgePermission, BridgeHandler>> = {
   "wallet.getAddress": async () => null,
   "wallet.sign": async (payload) => payload,
