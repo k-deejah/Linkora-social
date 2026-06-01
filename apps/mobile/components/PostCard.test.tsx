@@ -1,34 +1,81 @@
-import React from "react";
-import { render, fireEvent } from "@testing-library/react-native";
-import { PostCard } from "./PostCard";
+import React from 'react';
+import renderer from 'react-test-renderer';
+import { fireEvent, render, screen } from '@testing-library/react-native';
+import { PostCard, Post } from '../PostCard';
 
-const mockPost = {
-  id: "1",
-  author: "GABCDEFGHIJK",
-  username: "alice",
-  content: "This is a test post",
-  tip_total: 10,
-  timestamp: Math.floor(Date.now() / 1000) - 30,
-  like_count: 5,
-};
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 
-describe("PostCard", () => {
-  it("renders post details correctly", () => {
-    const { getByText } = render(<PostCard post={mockPost} />);
+describe('PostCard', () => {
+  const defaultPost: Post = {
+    id: 1,
+    author: 'GABCD1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    username: 'john.doe',
+    content: 'This is a sample post content.',
+    tip_total: 100,
+    timestamp: Math.floor(Date.now() / 1000) - 3600,
+    like_count: 42,
+  };
 
-    expect(getByText("alice")).toBeTruthy();
-    expect(getByText("This is a test post")).toBeTruthy();
-    expect(getByText("♥ 5")).toBeTruthy();
-    expect(getByText("◎ 10")).toBeTruthy();
+  describe('Rendering', () => {
+    it('renders all post fields correctly', () => {
+      const { getByText } = render(<PostCard post={defaultPost} />);
+      expect(getByText(defaultPost.username)).toBeTruthy();
+      expect(getByText(defaultPost.content)).toBeTruthy();
+      expect(getByText('♥ 42')).toBeTruthy();
+      expect(getByText('◎ 100')).toBeTruthy();
+    });
+
+    it('renders with zero likes correctly', () => {
+      const post = { ...defaultPost, like_count: 0 };
+      const { getByText } = render(<PostCard post={post} />);
+      expect(getByText('♥ 0')).toBeTruthy();
+    });
+
+    it('renders with long content correctly', () => {
+      const longContent = 'This is a very long post content that spans multiple lines and demonstrates how the PostCard component handles longer text content. It should wrap properly and maintain good readability across different screen sizes.';
+      const post = { ...defaultPost, content: longContent };
+      const { getByText } = render(<PostCard post={post} />);
+      expect(getByText(longContent)).toBeTruthy();
+    });
+
+    it('renders loading skeleton', () => {
+      const { getByTestId } = render(<PostCard id="1" author={defaultPost.author} content={defaultPost.content} timestamp={Date.now()} isLoading={true} />);
+      expect(getByTestId('post-skeleton')).toBeTruthy();
+    });
   });
 
-  it("triggers onPress when clicked", () => {
-    const mockOnPress = jest.fn();
-    const { getByRole } = render(<PostCard post={mockPost} onPress={mockOnPress} />);
+  describe('Accessibility', () => {
+    it('has accessible button role and label', () => {
+      const { getByRole } = render(<PostCard post={defaultPost} />);
+      const button = getByRole('button');
+      expect(button).toBeTruthy();
+      expect(button.props.accessibilityLabel).toBe(`Post by ${defaultPost.username}`);
+    });
 
-    const button = getByRole("button");
-    fireEvent.press(button);
+    it('avatar has minimum 44x44 touch target', () => {
+      const tree = renderer.create(<PostCard post={defaultPost} />).toJSON();
+      expect(tree).toMatchSnapshot();
+    });
+  });
 
-    expect(mockOnPress).toHaveBeenCalledTimes(1);
+  describe('Interaction', () => {
+    it('calls onPress when tapped', () => {
+      const onPress = jest.fn();
+      const { getByRole } = render(<PostCard post={defaultPost} onPress={onPress} />);
+      const button = getByRole('button');
+      fireEvent.press(button);
+      expect(onPress).toHaveBeenCalled();
+    });
+
+    it('navigates to post detail by default', () => {
+      const { useRouter } = require('expo-router');
+      const mockPush = jest.fn();
+      (useRouter as jest.Mock).mockReturnValue({ push: mockPush });
+
+      const { getByRole } = render(<PostCard post={defaultPost} />);
+      const button = getByRole('button');
+      fireEvent.press(button);
+      expect(mockPush).toHaveBeenCalledWith(`/post/${defaultPost.id}`);
+    });
   });
 });

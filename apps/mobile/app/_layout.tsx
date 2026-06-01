@@ -1,8 +1,10 @@
 import { Tabs, useRouter } from "expo-router";
 import { useEffect } from "react";
-import { Linking, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+import { NetworkProvider } from "../context/NetworkContext";
 import { WalletProvider } from "../context/WalletContext";
+import { useNetwork } from "../hooks/useNetwork";
 import { useWallet } from "../hooks/useWallet";
 import { parseDeepLink } from "../utils/deepLinks";
 
@@ -27,6 +29,33 @@ function HeaderWalletAddress() {
         {connected && address ? shortAddress(address) : "Connect"}
       </Text>
     </TouchableOpacity>
+  );
+}
+
+function HeaderNetworkBadge() {
+  const router = useRouter();
+  const { network, isMainnet } = useNetwork();
+
+  return (
+    <TouchableOpacity
+      style={[styles.networkBadge, isMainnet && styles.networkBadgeMainnet]}
+      onPress={() => router.push("/settings" as Parameters<typeof router.push>[0])}
+      accessibilityRole="button"
+      accessibilityLabel={`Open network settings. Active network ${network.label}`}
+    >
+      <Text style={[styles.networkBadgeText, isMainnet && styles.networkBadgeTextMainnet]}>
+        {network.label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function HeaderActions() {
+  return (
+    <View style={styles.headerActions}>
+      <HeaderNetworkBadge />
+      <HeaderWalletAddress />
+    </View>
   );
 }
 
@@ -114,6 +143,10 @@ export default function RootLayout() {
         {/* Detail screens — hidden from tab bar */}
         <Tabs.Screen name="post/[id]" options={{ href: null, headerShown: true, title: "Post" }} />
         <Tabs.Screen
+          name="mini-app/[id]"
+          options={{ href: null, headerShown: true, title: "Mini App" }}
+        />
+        <Tabs.Screen
           name="profile/[address]"
           options={{ href: null, headerShown: true, title: "Profile" }}
         />
@@ -141,5 +174,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     fontFamily: "monospace",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginRight: 12,
+  },
+  networkBadge: {
+    minHeight: 32,
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  networkBadgeMainnet: {
+    backgroundColor: "#3f1d1d",
+    borderColor: "#7f1d1d",
+  },
+  networkBadgeText: {
+    color: "#cbd5e1",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  networkBadgeTextMainnet: {
+    color: "#fecaca",
   },
 });
