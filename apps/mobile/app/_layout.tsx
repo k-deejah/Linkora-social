@@ -162,6 +162,18 @@ export default function RootLayout() {
           options={{ href: null, headerShown: true, title: "Profile" }}
         />
         <Tabs.Screen name="pool/[id]" options={{ href: null, headerShown: true, title: "Pool" }} />
+        <Tabs.Screen
+          name="profile/followers"
+          options={{ href: null, headerShown: true, title: "Followers" }}
+        />
+        <Tabs.Screen
+          name="profile/following"
+          options={{ href: null, headerShown: true, title: "Following" }}
+        />
+        <Tabs.Screen
+          name="settings/blocked"
+          options={{ href: null, headerShown: true, title: "Blocked Users" }}
+        />
       </Tabs>
     </WalletProvider>
   );

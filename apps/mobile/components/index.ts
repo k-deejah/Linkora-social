@@ -3,6 +3,7 @@ export { PoolCard } from "./PoolCard";
 export { EmptyState } from "./EmptyState";
 export { SearchBar } from "./SearchBar";
 export { ProfileRow } from "./ProfileRow";
+export { UserListItem } from "./UserListItem";
 export { PoolRow } from "./PoolRow";
 export { WalletButton } from "./WalletButton";
 export { MiniAppIcon } from "./MiniAppIcon";
