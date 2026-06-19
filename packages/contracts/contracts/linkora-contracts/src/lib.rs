@@ -27,8 +27,11 @@ pub enum StorageKey {
     FollowingPos(Address, Address), // persistent: (follower, followee) -> u32 position in idx
     FollowersPos(Address, Address), // persistent: (followee, follower) -> u32 position in idx
     GraphMigrated(Address),         // persistent: user -> bool (migration tracking)
-    // ── End-to-end encrypted direct messages ──────────────────────────────
-    DmPublicKey(Address), // persistent: user -> X25519 public key for E2EE DMs
+    // ── Governance ────────────────────────────────────────────────────────
+    GovProposal(u64),      // persistent: proposal_id -> GovProposal
+    GovVote(u64, Address), // persistent: (proposal_id, voter) -> bool (prevents double-voting)
+    GovConfig,             // persistent: governance configuration
+    GovProposalCount,      // persistent: next proposal id counter
 }
 
 // ── Instance-storage key constants (small scalars, not contracttype) ──────────
@@ -114,6 +117,53 @@ pub struct Proposal {
     pub recipient: Address,
     pub signers: Vec<Address>,
     pub status: ProposalStatus,
+}
+
+// ── Governance Types ─────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum GovParameter {
+    FeeBps,
+    Treasury,
+    TipCooldownWindow,
+    GovQuorum,
+    GovTimeLock,
+    GovVoteWindow,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum GovStatus {
+    Active,
+    Passed,
+    Executed,
+    Vetoed,
+    Failed,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct GovProposal {
+    pub id: u64,
+    pub proposer: Address,
+    pub parameter: GovParameter,
+    pub new_value: u64,
+    pub new_address: Option<Address>,
+    pub votes_for: u32,
+    pub votes_against: u32,
+    pub created_ledger: u32,
+    pub status: GovStatus,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct GovConfig {
+    pub quorum: u32,
+    pub time_lock_ledgers: u32,
+    pub vote_window_ledgers: u32,
+    pub quorum_decay_rate_bps: u32,
+    pub quorum_floor: u32,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -319,6 +369,49 @@ pub struct TreasuryUpdatedEvent {
     pub old_treasury: Address,
     pub new_treasury: Address,
 }
+#[contractevent]
+#[derive(Clone)]
+pub struct GovProposalCreatedEvent {
+    #[topic]
+    pub proposal_id: u64,
+    pub proposer: Address,
+    pub parameter: GovParameter,
+    pub new_value: u64,
+}
+
+#[contractevent]
+#[derive(Clone)]
+pub struct GovVoteEvent {
+    #[topic]
+    pub proposal_id: u64,
+    #[topic]
+    pub voter: Address,
+    pub support: bool,
+}
+
+#[contractevent]
+#[derive(Clone)]
+pub struct GovProposalExecutedEvent {
+    #[topic]
+    pub proposal_id: u64,
+    pub parameter: GovParameter,
+    pub new_value: u64,
+}
+
+#[contractevent]
+#[derive(Clone)]
+pub struct GovProposalVetoedEvent {
+    #[topic]
+    pub proposal_id: u64,
+}
+
+#[contractevent]
+#[derive(Clone)]
+pub struct EmergencyBypassEvent {
+    #[topic]
+    pub action: Symbol,
+}
+
 // ── Contract ──────────────────────────────────────────────────────────────────
 
 #[contract]
@@ -1290,6 +1383,10 @@ impl LinkoraContract {
             new_fee_bps: fee_bps,
         }
         .publish(&env);
+        EmergencyBypassEvent {
+            action: symbol_short!("set_fee"),
+        }
+        .publish(&env);
     }
 
     pub fn set_treasury(env: Env, treasury: Address) {
@@ -1301,6 +1398,10 @@ impl LinkoraContract {
             name: symbol_short!("treas_upd"),
             old_treasury,
             new_treasury: treasury,
+        }
+        .publish(&env);
+        EmergencyBypassEvent {
+            action: symbol_short!("set_tres"),
         }
         .publish(&env);
     }
@@ -1327,6 +1428,329 @@ impl LinkoraContract {
             .instance()
             .get(&TIP_COOLDOWN_WINDOW)
             .unwrap_or(1u32)
+    }
+
+    // ── Governance ────────────────────────────────────────────────────────────
+
+    pub fn gov_init_config(
+        env: Env,
+        quorum: u32,
+        time_lock_ledgers: u32,
+        vote_window_ledgers: u32,
+        quorum_decay_rate_bps: u32,
+        quorum_floor: u32,
+    ) {
+        Self::bump_instance(&env);
+        Self::require_admin(&env);
+        assert!(quorum > 0 && quorum <= 100, "quorum must be 1-100");
+        assert!(quorum_floor <= quorum, "floor must be <= quorum");
+        assert!(time_lock_ledgers > 0, "time_lock must be positive");
+        assert!(vote_window_ledgers > 0, "vote_window must be positive");
+
+        let config = GovConfig {
+            quorum,
+            time_lock_ledgers,
+            vote_window_ledgers,
+            quorum_decay_rate_bps,
+            quorum_floor,
+        };
+        let key = StorageKey::GovConfig;
+        env.storage().persistent().set(&key, &config);
+        Self::bump(&env, &key);
+    }
+
+    pub fn gov_get_config(env: Env) -> GovConfig {
+        let key = StorageKey::GovConfig;
+        let config: GovConfig = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .expect("governance not configured");
+        Self::bump(&env, &key);
+        config
+    }
+
+    pub fn gov_propose(
+        env: Env,
+        proposer: Address,
+        parameter: GovParameter,
+        new_value: u64,
+        new_address: Option<Address>,
+    ) -> u64 {
+        Self::bump_instance(&env);
+        proposer.require_auth();
+
+        if parameter == GovParameter::Treasury {
+            assert!(
+                new_address.is_some(),
+                "treasury proposals require new_address"
+            );
+        }
+
+        let config_key = StorageKey::GovConfig;
+        let _config: GovConfig = env
+            .storage()
+            .persistent()
+            .get(&config_key)
+            .expect("governance not configured");
+        Self::bump(&env, &config_key);
+
+        let count_key = StorageKey::GovProposalCount;
+        let id: u64 = env.storage().persistent().get(&count_key).unwrap_or(0u64) + 1;
+
+        let proposal = GovProposal {
+            id,
+            proposer: proposer.clone(),
+            parameter: parameter.clone(),
+            new_value,
+            new_address,
+            votes_for: 0,
+            votes_against: 0,
+            created_ledger: env.ledger().sequence(),
+            status: GovStatus::Active,
+        };
+
+        let proposal_key = StorageKey::GovProposal(id);
+        env.storage().persistent().set(&proposal_key, &proposal);
+        Self::bump(&env, &proposal_key);
+        env.storage().persistent().set(&count_key, &id);
+        Self::bump(&env, &count_key);
+
+        GovProposalCreatedEvent {
+            proposal_id: id,
+            proposer,
+            parameter,
+            new_value,
+        }
+        .publish(&env);
+
+        id
+    }
+
+    pub fn gov_vote(env: Env, voter: Address, proposal_id: u64, support: bool) {
+        Self::bump_instance(&env);
+        voter.require_auth();
+
+        let config_key = StorageKey::GovConfig;
+        let config: GovConfig = env
+            .storage()
+            .persistent()
+            .get(&config_key)
+            .expect("governance not configured");
+        Self::bump(&env, &config_key);
+
+        let proposal_key = StorageKey::GovProposal(proposal_id);
+        let mut proposal: GovProposal = env
+            .storage()
+            .persistent()
+            .get(&proposal_key)
+            .expect("proposal not found");
+
+        assert!(proposal.status == GovStatus::Active, "proposal not active");
+
+        let current_ledger = env.ledger().sequence();
+        let vote_deadline = proposal.created_ledger + config.vote_window_ledgers;
+        assert!(current_ledger <= vote_deadline, "vote window closed");
+
+        let vote_key = StorageKey::GovVote(proposal_id, voter.clone());
+        assert!(!env.storage().persistent().has(&vote_key), "already voted");
+
+        if support {
+            proposal.votes_for += 1;
+        } else {
+            proposal.votes_against += 1;
+        }
+
+        env.storage().persistent().set(&vote_key, &true);
+        Self::bump(&env, &vote_key);
+        env.storage().persistent().set(&proposal_key, &proposal);
+        Self::bump(&env, &proposal_key);
+
+        GovVoteEvent {
+            proposal_id,
+            voter,
+            support,
+        }
+        .publish(&env);
+    }
+
+    pub fn effective_quorum(env: Env, proposal_id: u64) -> u32 {
+        let config_key = StorageKey::GovConfig;
+        let config: GovConfig = env
+            .storage()
+            .persistent()
+            .get(&config_key)
+            .expect("governance not configured");
+        Self::bump(&env, &config_key);
+
+        let proposal_key = StorageKey::GovProposal(proposal_id);
+        let proposal: GovProposal = env
+            .storage()
+            .persistent()
+            .get(&proposal_key)
+            .expect("proposal not found");
+        Self::bump(&env, &proposal_key);
+
+        let elapsed = env
+            .ledger()
+            .sequence()
+            .saturating_sub(proposal.created_ledger);
+        let decay = (elapsed as u64 * config.quorum_decay_rate_bps as u64 / 10_000) as u32;
+        let decayed_quorum = config.quorum.saturating_sub(decay);
+
+        if decayed_quorum < config.quorum_floor {
+            config.quorum_floor
+        } else {
+            decayed_quorum
+        }
+    }
+
+    pub fn gov_execute(env: Env, proposal_id: u64) {
+        Self::bump_instance(&env);
+
+        let config_key = StorageKey::GovConfig;
+        let config: GovConfig = env
+            .storage()
+            .persistent()
+            .get(&config_key)
+            .expect("governance not configured");
+        Self::bump(&env, &config_key);
+
+        let proposal_key = StorageKey::GovProposal(proposal_id);
+        let mut proposal: GovProposal = env
+            .storage()
+            .persistent()
+            .get(&proposal_key)
+            .expect("proposal not found");
+
+        assert!(proposal.status == GovStatus::Active, "proposal not active");
+
+        let current_ledger = env.ledger().sequence();
+        let vote_end = proposal.created_ledger + config.vote_window_ledgers;
+        let execution_after = vote_end + config.time_lock_ledgers;
+        assert!(current_ledger >= execution_after, "time-lock not expired");
+
+        let total_votes = proposal.votes_for + proposal.votes_against;
+        assert!(total_votes > 0, "no votes cast");
+
+        let approval_pct = (proposal.votes_for as u64 * 100) / total_votes as u64;
+        let eff_quorum = Self::effective_quorum(env.clone(), proposal_id) as u64;
+        assert!(approval_pct >= eff_quorum, "quorum not met");
+
+        match proposal.parameter {
+            GovParameter::FeeBps => {
+                let val = proposal.new_value as u32;
+                assert!(val <= 10_000, "invalid fee");
+                env.storage().instance().set(&FEE_BPS, &val);
+            }
+            GovParameter::Treasury => {
+                let addr = proposal
+                    .new_address
+                    .clone()
+                    .expect("treasury proposal missing new_address");
+                env.storage().instance().set(&TREASURY, &addr);
+            }
+            GovParameter::TipCooldownWindow => {
+                let val = proposal.new_value as u32;
+                assert!(val > 0, "cooldown must be positive");
+                env.storage().instance().set(&TIP_COOLDOWN_WINDOW, &val);
+            }
+            GovParameter::GovQuorum => {
+                let val = proposal.new_value as u32;
+                assert!(val > 0 && val <= 100, "quorum must be 1-100");
+                let mut cfg = config.clone();
+                cfg.quorum = val;
+                env.storage().persistent().set(&StorageKey::GovConfig, &cfg);
+            }
+            GovParameter::GovTimeLock => {
+                let val = proposal.new_value as u32;
+                assert!(val > 0, "time_lock must be positive");
+                let mut cfg = config.clone();
+                cfg.time_lock_ledgers = val;
+                env.storage().persistent().set(&StorageKey::GovConfig, &cfg);
+            }
+            GovParameter::GovVoteWindow => {
+                let val = proposal.new_value as u32;
+                assert!(val > 0, "vote_window must be positive");
+                let mut cfg = config.clone();
+                cfg.vote_window_ledgers = val;
+                env.storage().persistent().set(&StorageKey::GovConfig, &cfg);
+            }
+        }
+
+        proposal.status = GovStatus::Executed;
+        env.storage().persistent().set(&proposal_key, &proposal);
+        Self::bump(&env, &proposal_key);
+
+        GovProposalExecutedEvent {
+            proposal_id,
+            parameter: proposal.parameter,
+            new_value: proposal.new_value,
+        }
+        .publish(&env);
+    }
+
+    pub fn gov_veto(env: Env, signers: Vec<Address>, pool_id: Symbol, proposal_id: u64) {
+        Self::bump_instance(&env);
+
+        let config_key = StorageKey::GovConfig;
+        let config: GovConfig = env
+            .storage()
+            .persistent()
+            .get(&config_key)
+            .expect("governance not configured");
+        Self::bump(&env, &config_key);
+
+        let proposal_key = StorageKey::GovProposal(proposal_id);
+        let mut proposal: GovProposal = env
+            .storage()
+            .persistent()
+            .get(&proposal_key)
+            .expect("proposal not found");
+
+        assert!(proposal.status == GovStatus::Active, "proposal not active");
+
+        let current_ledger = env.ledger().sequence();
+        let vote_end = proposal.created_ledger + config.vote_window_ledgers;
+        let time_lock_end = vote_end + config.time_lock_ledgers;
+        assert!(
+            current_ledger >= vote_end && current_ledger < time_lock_end,
+            "veto only during time-lock window"
+        );
+
+        let pool_key = StorageKey::Pool(pool_id);
+        let pool: Pool = env
+            .storage()
+            .persistent()
+            .get(&pool_key)
+            .expect("pool not found");
+        Self::bump(&env, &pool_key);
+
+        assert!(signers.len() >= pool.threshold, "insufficient signers");
+        for signer in signers.iter() {
+            assert!(
+                pool.admins.iter().any(|x| x == signer),
+                "unauthorized signer"
+            );
+            signer.require_auth();
+        }
+
+        proposal.status = GovStatus::Vetoed;
+        env.storage().persistent().set(&proposal_key, &proposal);
+        Self::bump(&env, &proposal_key);
+
+        GovProposalVetoedEvent { proposal_id }.publish(&env);
+    }
+
+    pub fn gov_get_proposal(env: Env, proposal_id: u64) -> GovProposal {
+        let key = StorageKey::GovProposal(proposal_id);
+        let proposal: GovProposal = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .expect("proposal not found");
+        Self::bump(&env, &key);
+        proposal
     }
 
     // ── Upgradability ─────────────────────────────────────────────────────────
