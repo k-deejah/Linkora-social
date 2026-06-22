@@ -39,7 +39,7 @@ importers:
         version: 10.9.2(@types/node@22.19.19)(typescript@5.9.3)
       turbo:
         specifier: latest
-        version: 2.9.18
+        version: 2.9.16
 
   apps/mobile:
     dependencies:
@@ -124,8 +124,8 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       next:
-        specifier: 15.3.1
-        version: 15.3.1(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: 15.5.19
+        version: 15.5.19(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react:
         specifier: ^19.0.0
         version: 19.2.7
@@ -156,19 +156,6 @@ importers:
         version: 4.3.0
       typescript:
         specifier: ^5
-        version: 5.9.3
-
-  packages/codegen:
-    dependencies:
-      "@stellar/stellar-sdk":
-        specifier: ^15.1.0
-        version: 15.1.0
-    devDependencies:
-      tsx:
-        specifier: ^4.22.4
-        version: 4.22.4
-      typescript:
-        specifier: ^5.8.3
         version: 5.9.3
 
   packages/contracts:
@@ -211,16 +198,6 @@ importers:
       typedoc:
         specifier: ^0.27.9
         version: 0.27.9(typescript@5.9.3)
-      typescript:
-        specifier: ^5.8.3
-        version: 5.9.3
-
-  packages/types:
-    dependencies:
-      linkora-sdk:
-        specifier: workspace:*
-        version: link:../sdk
-    devDependencies:
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
@@ -2597,10 +2574,10 @@ packages:
         integrity: sha512-DuhvCtj4t9Gwrx80dmz2F4t/zKQ4ktN8WrMwOuVzkJfBilwAwGr6v16M5eI8yCuZ63H9TTuEU09Iu2HqkzFPVQ==,
       }
 
-  "@next/env@15.3.1":
+  "@next/env@15.5.19":
     resolution:
       {
-        integrity: sha512-cwK27QdzrMblHSn9DZRV+DQscHXRuJv6MydlJRpFSqJWZrTYMLzKDeyueJNN9MGd8NNiUKzDQADAf+dMLXX7YQ==,
+        integrity: sha512-sWWluFvcv5v3Fxznmf2ZfjyoVQt/64oCnYqS90inQWGzMPK1VjvekPiz3OPHKmFT30EnHrjlbyaHLt3M0vWabw==,
       }
 
   "@next/eslint-plugin-next@14.2.35":
@@ -2618,10 +2595,10 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
-  "@next/swc-darwin-arm64@15.3.1":
+  "@next/swc-darwin-arm64@15.5.19":
     resolution:
       {
-        integrity: sha512-hjDw4f4/nla+6wysBL07z52Gs55Gttp5Bsk5/8AncQLJoisvTBP0pRIBK/B16/KqQyH+uN4Ww8KkcAqJODYH3w==,
+        integrity: sha512-jx9wWlTKueHKPvVOndyr7WuaevWCkuYqsQ8gC0TMPKAVWG3MhcdMrjfo9tvIZNXd0QOUYXXvAcZ325y8Uq7uzg==,
       }
     engines: { node: ">= 10" }
     cpu: [arm64]
@@ -2636,10 +2613,10 @@ packages:
     cpu: [x64]
     os: [darwin]
 
-  "@next/swc-darwin-x64@15.3.1":
+  "@next/swc-darwin-x64@15.5.19":
     resolution:
       {
-        integrity: sha512-q+aw+cJ2ooVYdCEqZVk+T4Ni10jF6Fo5DfpEV51OupMaV5XL6pf3GCzrk6kSSZBsMKZtVC1Zm/xaNBFpA6bJ2g==,
+        integrity: sha512-291KFcsIQ3OenRdiUDFOR6W3wezzH4auENXm1gbm1Bjd4ANMMRgxPrWTUztQN43BnVoVuMnHCrLeECIMwgFKbA==,
       }
     engines: { node: ">= 10" }
     cpu: [x64]
@@ -2654,10 +2631,10 @@ packages:
     cpu: [arm64]
     os: [linux]
 
-  "@next/swc-linux-arm64-gnu@15.3.1":
+  "@next/swc-linux-arm64-gnu@15.5.19":
     resolution:
       {
-        integrity: sha512-wBQ+jGUI3N0QZyWmmvRHjXjTWFy8o+zPFLSOyAyGFI94oJi+kK/LIZFJXeykvgXUk1NLDAEFDZw/NVINhdk9FQ==,
+        integrity: sha512-WeH+nelQyyMeE2f8FxBRZNrGipya5zHZV2vjzfCOAYyiI6am+NbnWAAldOBFQBB2w0DjJcsvrKqoFT2b7+5YoA==,
       }
     engines: { node: ">= 10" }
     cpu: [arm64]
@@ -2672,10 +2649,10 @@ packages:
     cpu: [arm64]
     os: [linux]
 
-  "@next/swc-linux-arm64-musl@15.3.1":
+  "@next/swc-linux-arm64-musl@15.5.19":
     resolution:
       {
-        integrity: sha512-IIxXEXRti/AulO9lWRHiCpUUR8AR/ZYLPALgiIg/9ENzMzLn3l0NSxVdva7R/VDcuSEBo0eGVCe3evSIHNz0Hg==,
+        integrity: sha512-5xTOE0lDlDCSSfp+BAif7j17VRRCjWp//ZPZy6NI0QpdrhxtQnsZguSx0xAAZ0c9XZLrLLwCe/XVe5YPrRilKw==,
       }
     engines: { node: ">= 10" }
     cpu: [arm64]
@@ -2690,10 +2667,10 @@ packages:
     cpu: [x64]
     os: [linux]
 
-  "@next/swc-linux-x64-gnu@15.3.1":
+  "@next/swc-linux-x64-gnu@15.5.19":
     resolution:
       {
-        integrity: sha512-bfI4AMhySJbyXQIKH5rmLJ5/BP7bPwuxauTvVEiJ/ADoddaA9fgyNNCcsbu9SlqfHDoZmfI6g2EjzLwbsVTr5A==,
+        integrity: sha512-LTxRmMgqqMv05Had879W00Fm53quiJd3Zuz8h1JSNJ3nGSlbZ/7Tjs1tKyScgN3Au3t3MyPsjPlq60fMmSHLsg==,
       }
     engines: { node: ">= 10" }
     cpu: [x64]
@@ -2708,10 +2685,10 @@ packages:
     cpu: [x64]
     os: [linux]
 
-  "@next/swc-linux-x64-musl@15.3.1":
+  "@next/swc-linux-x64-musl@15.5.19":
     resolution:
       {
-        integrity: sha512-FeAbR7FYMWR+Z+M5iSGytVryKHiAsc0x3Nc3J+FD5NVbD5Mqz7fTSy8CYliXinn7T26nDMbpExRUI/4ekTvoiA==,
+        integrity: sha512-eoNQSpA5PQfB9wBO4RA47MTDXWz1fizy9Y3Z6e4DetYIF3dvjuu8sj7aIGn/bFCU6lnFzTK34NtCaffP4NsQ7Q==,
       }
     engines: { node: ">= 10" }
     cpu: [x64]
@@ -2726,10 +2703,10 @@ packages:
     cpu: [arm64]
     os: [win32]
 
-  "@next/swc-win32-arm64-msvc@15.3.1":
+  "@next/swc-win32-arm64-msvc@15.5.19":
     resolution:
       {
-        integrity: sha512-yP7FueWjphQEPpJQ2oKmshk/ppOt+0/bB8JC8svPUZNy0Pi3KbPx2Llkzv1p8CoQa+D2wknINlJpHf3vtChVBw==,
+        integrity: sha512-6UNt2dFuCHOe446sm/Kp69nUe8/wIhnh9bm6Xcqw4qEWCOppLMOvhTBVgvM7invVUNr4SPpP6NOQsACtn2IN9Q==,
       }
     engines: { node: ">= 10" }
     cpu: [arm64]
@@ -2753,10 +2730,10 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  "@next/swc-win32-x64-msvc@15.3.1":
+  "@next/swc-win32-x64-msvc@15.5.19":
     resolution:
       {
-        integrity: sha512-3PMvF2zRJAifcRNni9uMk/gulWfWS+qVI/pagd+4yLF5bcXPZPPH2xlYRYOsUjmCJOXSTAC2PjRzbhsRzR2fDQ==,
+        integrity: sha512-PhmojAHyqMne56HBLGu9dhDnHPuFmEjrXSQMM/nW0J6j849lk3ESrVtqNJcCk8CKOV7brpTTbaYAjwKPzKM69w==,
       }
     engines: { node: ">= 10" }
     cpu: [x64]
@@ -3234,7 +3211,6 @@ packages:
       {
         integrity: sha512-gOBSOFDepihslcInlqnxKZdIW9dMUO1tpOm3AtJR33K2OvpXG6SaVHCzAmCFArcCqI9zXTEiSoh70T48TmiHJA==,
       }
-    deprecated: This package is now rolled into @stellar/stellar-sdk. Please use @stellar/stellar-sdk to continue receiving updates and support.
 
   "@stellar/stellar-base@13.1.0":
     resolution:
@@ -3242,7 +3218,6 @@ packages:
         integrity: sha512-90EArG+eCCEzDGj3OJNoCtwpWDwxjv+rs/RNPhvg4bulpjN/CSRj+Ys/SalRcfM4/WRC5/qAfjzmJBAuquWhkA==,
       }
     engines: { node: ">=18.0.0" }
-    deprecated: This package is now rolled into @stellar/stellar-sdk. Please use @stellar/stellar-sdk to continue receiving updates and support.
 
   "@stellar/stellar-base@15.0.0":
     resolution:
@@ -3250,7 +3225,6 @@ packages:
         integrity: sha512-XQhxUr9BYiEcFcgc4oWcCMR9QJCny/GmmGsuwPKf/ieIcOeb5149KLHYx9mJCA0ea8QbucR2/GzV58QbXOTxQA==,
       }
     engines: { node: ">=20.0.0" }
-    deprecated: This package is now rolled into @stellar/stellar-sdk. Please use @stellar/stellar-sdk to continue receiving updates and support.
 
   "@stellar/stellar-sdk@12.3.0":
     resolution:
@@ -3494,50 +3468,50 @@ packages:
         integrity: sha512-vxhUy4J8lyeyinH7Azl1pdd43GJhZH/tP2weN8TntQblOY+A0XbT8DJk1/oCPuOOyg/Ja757rG0CgHcWC8OfMA==,
       }
 
-  "@turbo/darwin-64@2.9.18":
+  "@turbo/darwin-64@2.9.16":
     resolution:
       {
-        integrity: sha512-9f27peFu16ur8c0v9nUFUEyBnbKuuFsUTjHFWfmwGfzySBXbHwzU44QhZon6Mznz0cHsIr3984NQj/bVrnGSRw==,
+        integrity: sha512-jLjApWTSNd7JZ5JaLYfelW1ytnGQOvB7ivl+2RD1xQvJTbi8I9gBjzcga7tDZVPyaxpl10YTfJt3BrYXR18KDw==,
       }
     cpu: [x64]
     os: [darwin]
 
-  "@turbo/darwin-arm64@2.9.18":
+  "@turbo/darwin-arm64@2.9.16":
     resolution:
       {
-        integrity: sha512-9A6TMRq/Ib+QnbhLlgkhOm+624wO4pzSQ/yQviQfWHOlFvaYxdnIAYmu2H6TS6y7kSVL0DvzNe04NbESTOzFVQ==,
+        integrity: sha512-YPgrn+5HIGzrx0O2a631SV4MBQUe4W/DafMFUuBVgaU32PW9/OTT0ehviF0QSxTXuRJlHvW2eUTemddF5/spmw==,
       }
     cpu: [arm64]
     os: [darwin]
 
-  "@turbo/linux-64@2.9.18":
+  "@turbo/linux-64@2.9.16":
     resolution:
       {
-        integrity: sha512-zCdIDtz69AnbYh913elJRRoF3QY5aa2HNnf+4rAkc7bQ+tWujiDkCNV7stazOUPggaDvhKIf2Z87qHftTeXSkw==,
+        integrity: sha512-vAEf1H6l26lTpl9FJ/peQo1NUB8RC0sbEJJz5mPcUhHA2bPDup2x3CZPgo/bH8S4cUcBLm4FN3UHd5iUO2RAew==,
       }
     cpu: [x64]
     os: [linux]
 
-  "@turbo/linux-arm64@2.9.18":
+  "@turbo/linux-arm64@2.9.16":
     resolution:
       {
-        integrity: sha512-Va1kXI04naMgYwqv/5Dfa36dTDx8015U7oaQAjrXa45ua9OoFjSV4OmvkML4EmXvUclQHCiBRbY8bvd0jV7eAg==,
+        integrity: sha512-xDBLR2PZg4BrQOchfG6svgpv5FCNJ2TOtT2psLdEJcdKo1BH+pnPs9Xj6pvUjgfkHbuvBOfeE4R6tvxMoQKDHQ==,
       }
     cpu: [arm64]
     os: [linux]
 
-  "@turbo/windows-64@2.9.18":
+  "@turbo/windows-64@2.9.16":
     resolution:
       {
-        integrity: sha512-m0kDhZANxSNz9ck1ybogFscHabriAsp4eDFNrN/1H5WrgTF7b3VlcPZnhuO3v2+E2KnCbeAc+UUT10BZZHdDKw==,
+        integrity: sha512-NBAJnaUiGdgkSzQwUIdOvkCkcpTSu58G/sBGa0mvBtzfvFOOgrQwepKOOQ8cp6sWM6OcKDNFj2p1dsZA1OWjPg==,
       }
     cpu: [x64]
     os: [win32]
 
-  "@turbo/windows-arm64@2.9.18":
+  "@turbo/windows-arm64@2.9.16":
     resolution:
       {
-        integrity: sha512-nUdR8WqoomUys9iIQmG45TMiizJ+5BV8egSeLLZba/AWblyp3fVBcIH1kSE58OtK4g2YzbMJEth6Ttv9w5rqMA==,
+        integrity: sha512-Y7SJppD0Z8wjO3Ec0ZGd9KQ4Yv0BMnA8CIowj5Vp+OEVsosXDG2weK6/t1RRLfJmc2Ozrnd6y4DOgQys+mn3WQ==,
       }
     cpu: [arm64]
     os: [win32]
@@ -9527,17 +9501,16 @@ packages:
       sass:
         optional: true
 
-  next@15.3.1:
+  next@15.5.19:
     resolution:
       {
-        integrity: sha512-8+dDV0xNLOgHlyBxP1GwHGVaNXsmp+2NhZEYrXr24GWLHtt27YrBPbPuHvzlhi7kZNYjeJNR93IF5zfFu5UL0g==,
+        integrity: sha512-xNOW6tYshGX1/Oi3F8uuk4gpDeWsSUE/1Z0G5uUMekIxaQ0xc03UXd9II0VQHYMWviMeA0OHpJFAKsHf8bTYVg==,
       }
     engines: { node: ^18.18.0 || ^19.8.0 || >= 20.0.0 }
-    deprecated: This version has a security vulnerability. Please upgrade to a patched version. See https://nextjs.org/blog/CVE-2025-66478 for more details.
     hasBin: true
     peerDependencies:
       "@opentelemetry/api": ^1.1.0
-      "@playwright/test": ^1.41.2
+      "@playwright/test": ^1.51.1
       babel-plugin-react-compiler: "*"
       react: ^18.2.0 || 19.0.0-rc-de68d2f4-20241204 || ^19.0.0
       react-dom: ^18.2.0 || 19.0.0-rc-de68d2f4-20241204 || ^19.0.0
@@ -12085,10 +12058,10 @@ packages:
     engines: { node: ">=18.0.0" }
     hasBin: true
 
-  turbo@2.9.18:
+  turbo@2.9.16:
     resolution:
       {
-        integrity: sha512-bwabv6PupzeavybzEoArBAkwq5fnzwf8OFnRtpHwnviFWuwJPFxtyH+aVp36TmIqK3aYYgtTJ3J0m2ysxxSzQg==,
+        integrity: sha512-NqgRQy6j6dPYcdSdv0q1g9QsZg7SWg87RERM8otw/1AtKU2yTFVClOM7cbwKzOonZr/Ek1blTBucw64L9H0Bwg==,
       }
     hasBin: true
 
@@ -12538,7 +12511,6 @@ packages:
       {
         integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==,
       }
-    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   v8-compile-cache-lib@3.0.1:
@@ -14803,7 +14775,7 @@ snapshots:
 
   "@next/env@14.2.35": {}
 
-  "@next/env@15.3.1": {}
+  "@next/env@15.5.19": {}
 
   "@next/eslint-plugin-next@14.2.35":
     dependencies:
@@ -14812,43 +14784,43 @@ snapshots:
   "@next/swc-darwin-arm64@14.2.33":
     optional: true
 
-  "@next/swc-darwin-arm64@15.3.1":
+  "@next/swc-darwin-arm64@15.5.19":
     optional: true
 
   "@next/swc-darwin-x64@14.2.33":
     optional: true
 
-  "@next/swc-darwin-x64@15.3.1":
+  "@next/swc-darwin-x64@15.5.19":
     optional: true
 
   "@next/swc-linux-arm64-gnu@14.2.33":
     optional: true
 
-  "@next/swc-linux-arm64-gnu@15.3.1":
+  "@next/swc-linux-arm64-gnu@15.5.19":
     optional: true
 
   "@next/swc-linux-arm64-musl@14.2.33":
     optional: true
 
-  "@next/swc-linux-arm64-musl@15.3.1":
+  "@next/swc-linux-arm64-musl@15.5.19":
     optional: true
 
   "@next/swc-linux-x64-gnu@14.2.33":
     optional: true
 
-  "@next/swc-linux-x64-gnu@15.3.1":
+  "@next/swc-linux-x64-gnu@15.5.19":
     optional: true
 
   "@next/swc-linux-x64-musl@14.2.33":
     optional: true
 
-  "@next/swc-linux-x64-musl@15.3.1":
+  "@next/swc-linux-x64-musl@15.5.19":
     optional: true
 
   "@next/swc-win32-arm64-msvc@14.2.33":
     optional: true
 
-  "@next/swc-win32-arm64-msvc@15.3.1":
+  "@next/swc-win32-arm64-msvc@15.5.19":
     optional: true
 
   "@next/swc-win32-ia32-msvc@14.2.33":
@@ -14857,7 +14829,7 @@ snapshots:
   "@next/swc-win32-x64-msvc@14.2.33":
     optional: true
 
-  "@next/swc-win32-x64-msvc@15.3.1":
+  "@next/swc-win32-x64-msvc@15.5.19":
     optional: true
 
   "@noble/ciphers@0.5.3": {}
@@ -15509,22 +15481,22 @@ snapshots:
 
   "@tsconfig/node16@1.0.4": {}
 
-  "@turbo/darwin-64@2.9.18":
+  "@turbo/darwin-64@2.9.16":
     optional: true
 
-  "@turbo/darwin-arm64@2.9.18":
+  "@turbo/darwin-arm64@2.9.16":
     optional: true
 
-  "@turbo/linux-64@2.9.18":
+  "@turbo/linux-64@2.9.16":
     optional: true
 
-  "@turbo/linux-arm64@2.9.18":
+  "@turbo/linux-arm64@2.9.16":
     optional: true
 
-  "@turbo/windows-64@2.9.18":
+  "@turbo/windows-64@2.9.16":
     optional: true
 
-  "@turbo/windows-arm64@2.9.18":
+  "@turbo/windows-arm64@2.9.16":
     optional: true
 
   "@tybys/wasm-util@0.10.1":
@@ -16987,7 +16959,7 @@ snapshots:
 
   compressible@2.0.18:
     dependencies:
-      mime-db: 1.52.0
+      mime-db: 1.54.0
 
   compression@1.8.1:
     dependencies:
@@ -18987,7 +18959,7 @@ snapshots:
       micromatch: 4.0.8
       walker: 1.0.8
     optionalDependencies:
-      fsevents: 2.3.3
+      fsevents: 2.3.2
 
   jest-haste-map@30.4.1:
     dependencies:
@@ -20275,26 +20247,24 @@ snapshots:
       - "@babel/core"
       - babel-plugin-macros
 
-  next@15.3.1(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  next@15.5.19(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
-      "@next/env": 15.3.1
-      "@swc/counter": 0.1.3
+      "@next/env": 15.5.19
       "@swc/helpers": 0.5.15
-      busboy: 1.6.0
       caniuse-lite: 1.0.30001791
       postcss: 8.4.31
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
       styled-jsx: 5.1.6(react@19.2.7)
     optionalDependencies:
-      "@next/swc-darwin-arm64": 15.3.1
-      "@next/swc-darwin-x64": 15.3.1
-      "@next/swc-linux-arm64-gnu": 15.3.1
-      "@next/swc-linux-arm64-musl": 15.3.1
-      "@next/swc-linux-x64-gnu": 15.3.1
-      "@next/swc-linux-x64-musl": 15.3.1
-      "@next/swc-win32-arm64-msvc": 15.3.1
-      "@next/swc-win32-x64-msvc": 15.3.1
+      "@next/swc-darwin-arm64": 15.5.19
+      "@next/swc-darwin-x64": 15.5.19
+      "@next/swc-linux-arm64-gnu": 15.5.19
+      "@next/swc-linux-arm64-musl": 15.5.19
+      "@next/swc-linux-x64-gnu": 15.5.19
+      "@next/swc-linux-x64-musl": 15.5.19
+      "@next/swc-win32-arm64-msvc": 15.5.19
+      "@next/swc-win32-x64-msvc": 15.5.19
       "@playwright/test": 1.60.0
       sharp: 0.34.5
     transitivePeerDependencies:
@@ -21925,14 +21895,14 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.3
 
-  turbo@2.9.18:
+  turbo@2.9.16:
     optionalDependencies:
-      "@turbo/darwin-64": 2.9.18
-      "@turbo/darwin-arm64": 2.9.18
-      "@turbo/linux-64": 2.9.18
-      "@turbo/linux-arm64": 2.9.18
-      "@turbo/windows-64": 2.9.18
-      "@turbo/windows-arm64": 2.9.18
+      "@turbo/darwin-64": 2.9.16
+      "@turbo/darwin-arm64": 2.9.16
+      "@turbo/linux-64": 2.9.16
+      "@turbo/linux-arm64": 2.9.16
+      "@turbo/windows-64": 2.9.16
+      "@turbo/windows-arm64": 2.9.16
 
   tweetnacl@1.0.3: {}
 
