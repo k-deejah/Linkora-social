@@ -13,6 +13,18 @@ import {
   Keypair,
 } from "@stellar/stellar-sdk";
 import { NotFoundError, mapError } from "../errors";
+import type {
+  Pool,
+  Post,
+  Profile,
+  Proposal,
+  GovConfig,
+  GovProposal,
+  GovStatus,
+  StorageKey,
+  GovParameter,
+  ProposalStatus,
+} from "./types";
 
 const { isSimulationError, isSimulationSuccess } = rpc.Api;
 
@@ -49,6 +61,14 @@ function scvAddressVec(addresses: string[]): xdr.ScVal {
     { type: "vec" }
   );
 }
+
+/**
+ * scvAddressVec only handles string[] where every element is a Stellar address.
+ * For Vec<T> where T is not an address (e.g. Vec<u64>), the generic
+ * nativeToScVal fallback in argToScVal is used, which may produce
+ * incorrect ScVal encoding for future contract functions.
+ * If a new function uses Vec<non-address>, add a dedicated helper.
+ */
 
 export class GeneratedLinkoraClient {
   private contractId: string;
@@ -129,16 +149,22 @@ export class GeneratedLinkoraClient {
     return scValToNative(retval) as boolean;
   }
 
+  async getDmKey(user: string): Promise<Uint8Array | null> {
+    const retval = await this.simulateCall("get_dm_key", scvAddress(user));
+    if (!retval) return null;
+    try {
+      const raw = scValToNative(retval);
+      return raw == null ? null : (raw as Uint8Array);
+    } catch (e) {
+      if (e instanceof NotFoundError) return null;
+      throw e;
+    }
+  }
+
   async isBlocked(blocker: string, blocked: string): Promise<boolean> {
     const retval = await this.simulateCall("is_blocked", scvAddress(blocker), scvAddress(blocked));
     if (!retval) return false;
     return scValToNative(retval) as boolean;
-  }
-
-  async createPost(author: string, content: string): Promise<bigint> {
-    const retval = await this.simulateCall("create_post", scvAddress(author), scvString(content));
-    if (!retval) return 0n;
-    return scValToNative(retval) as bigint;
   }
 
   async getFeeBps(): Promise<number> {
@@ -171,14 +197,24 @@ export class GeneratedLinkoraClient {
     }
   }
 
-  async getFollowers(user: string): Promise<string[]> {
-    const retval = await this.simulateCall("get_followers", scvAddress(user));
+  async getFollowers(user: string, offset: number, limit: number): Promise<string[]> {
+    const retval = await this.simulateCall(
+      "get_followers",
+      scvAddress(user),
+      scvU32(offset),
+      scvU32(limit)
+    );
     if (!retval) return [];
     return scValToNative(retval) as string[];
   }
 
-  async getFollowing(user: string): Promise<string[]> {
-    const retval = await this.simulateCall("get_following", scvAddress(user));
+  async getFollowing(user: string, offset: number, limit: number): Promise<string[]> {
+    const retval = await this.simulateCall(
+      "get_following",
+      scvAddress(user),
+      scvU32(offset),
+      scvU32(limit)
+    );
     if (!retval) return [];
     return scValToNative(retval) as string[];
   }
@@ -195,10 +231,63 @@ export class GeneratedLinkoraClient {
     return scValToNative(retval) as bigint;
   }
 
+  async govGetConfig(): Promise<GovConfig> {
+    const retval = await this.simulateCall("gov_get_config");
+    if (!retval) throw new Error("No return value");
+    return scValToNative(retval) as GovConfig;
+  }
+
+  async getPoolAdmins(pool_id: string): Promise<string[]> {
+    const retval = await this.simulateCall("get_pool_admins", scvSymbol(pool_id));
+    if (!retval) return [];
+    return scValToNative(retval) as string[];
+  }
+
+  async effectiveQuorum(proposal_id: bigint): Promise<number> {
+    const retval = await this.simulateCall("effective_quorum", scvU64(proposal_id));
+    if (!retval) return 0;
+    return scValToNative(retval) as number;
+  }
+
+  async govGetProposal(proposal_id: bigint): Promise<GovProposal> {
+    const retval = await this.simulateCall("gov_get_proposal", scvU64(proposal_id));
+    if (!retval) throw new Error("No return value");
+    return scValToNative(retval) as GovProposal;
+  }
+
   async getProfileCount(): Promise<bigint> {
     const retval = await this.simulateCall("get_profile_count");
     if (!retval) return 0n;
     return scValToNative(retval) as bigint;
+  }
+
+  async getPostsByAuthor(author: string, offset: number, limit: number): Promise<bigint[]> {
+    const retval = await this.simulateCall(
+      "get_posts_by_author",
+      scvAddress(author),
+      scvU32(offset),
+      scvU32(limit)
+    );
+    if (!retval) return [];
+    return scValToNative(retval) as bigint[];
+  }
+
+  async getAddressByUsername(username: string): Promise<string | null> {
+    const retval = await this.simulateCall("get_address_by_username", scvString(username));
+    if (!retval) return null;
+    try {
+      const raw = scValToNative(retval);
+      return raw == null ? null : (raw as string);
+    } catch (e) {
+      if (e instanceof NotFoundError) return null;
+      throw e;
+    }
+  }
+
+  async getTipCooldownWindow(): Promise<number> {
+    const retval = await this.simulateCall("get_tip_cooldown_window");
+    if (!retval) return 0;
+    return scValToNative(retval) as number;
   }
 
   // ── Write Methods (XDR envelope builders) ───────────────────
@@ -223,6 +312,19 @@ export class GeneratedLinkoraClient {
 
   upgrade(new_wasm_hash: Uint8Array): string {
     return this.buildTx("upgrade", nativeToScVal(new_wasm_hash, { type: "bytes" }));
+  }
+
+  govVeto(signers: string[], pool_id: string, proposal_id: bigint): string {
+    return this.buildTx(
+      "gov_veto",
+      scvAddressVec(signers),
+      scvSymbol(pool_id),
+      scvU64(proposal_id)
+    );
+  }
+
+  govVote(voter: string, proposal_id: bigint, support: boolean): string {
+    return this.buildTx("gov_vote", scvAddress(voter), scvU64(proposal_id), nativeToScVal(support));
   }
 
   unfollow(follower: string, followee: string): string {
@@ -258,8 +360,31 @@ export class GeneratedLinkoraClient {
     );
   }
 
+  createPost(author: string, content: string): string {
+    return this.buildTx("create_post", scvAddress(author), scvString(content));
+  }
+
   deletePost(author: string, post_id: bigint): string {
     return this.buildTx("delete_post", scvAddress(author), scvU64(post_id));
+  }
+
+  govExecute(proposal_id: bigint): string {
+    return this.buildTx("gov_execute", scvU64(proposal_id));
+  }
+
+  govPropose(
+    proposer: string,
+    parameter: GovParameter,
+    new_value: bigint,
+    new_address: string | null
+  ): string {
+    return this.buildTx(
+      "gov_propose",
+      scvAddress(proposer),
+      nativeToScVal(parameter),
+      scvU64(new_value),
+      nativeToScVal(new_address)
+    );
   }
 
   setProfile(user: string, username: string, creator_token: string): string {
@@ -297,5 +422,69 @@ export class GeneratedLinkoraClient {
       scvI128(amount),
       scvAddress(recipient)
     );
+  }
+
+  addPoolAdmin(signers: string[], pool_id: string, new_admin: string): string {
+    return this.buildTx(
+      "add_pool_admin",
+      scvAddressVec(signers),
+      scvSymbol(pool_id),
+      scvAddress(new_admin)
+    );
+  }
+
+  deleteProfile(user: string): string {
+    return this.buildTx("delete_profile", scvAddress(user));
+  }
+
+  publishDmKey(user: string, x25519_pubkey: Uint8Array): string {
+    return this.buildTx(
+      "publish_dm_key",
+      scvAddress(user),
+      nativeToScVal(x25519_pubkey, { type: "bytes" })
+    );
+  }
+
+  govInitConfig(
+    quorum: number,
+    time_lock_ledgers: number,
+    vote_window_ledgers: number,
+    quorum_decay_rate_bps: number,
+    quorum_floor: number
+  ): string {
+    return this.buildTx(
+      "gov_init_config",
+      scvU32(quorum),
+      scvU32(time_lock_ledgers),
+      scvU32(vote_window_ledgers),
+      scvU32(quorum_decay_rate_bps),
+      scvU32(quorum_floor)
+    );
+  }
+
+  removePoolAdmin(signers: string[], pool_id: string, admin: string): string {
+    return this.buildTx(
+      "remove_pool_admin",
+      scvAddressVec(signers),
+      scvSymbol(pool_id),
+      scvAddress(admin)
+    );
+  }
+
+  migrateFollowGraph(users: string[]): string {
+    return this.buildTx("migrate_follow_graph", scvAddressVec(users));
+  }
+
+  updatePoolThreshold(signers: string[], pool_id: string, threshold: number): string {
+    return this.buildTx(
+      "update_pool_threshold",
+      scvAddressVec(signers),
+      scvSymbol(pool_id),
+      scvU32(threshold)
+    );
+  }
+
+  setTipCooldownWindow(cooldown_ledgers: number): string {
+    return this.buildTx("set_tip_cooldown_window", scvU32(cooldown_ledgers));
   }
 }

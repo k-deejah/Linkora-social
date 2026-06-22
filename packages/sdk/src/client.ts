@@ -1,6 +1,6 @@
 import { NotFoundError } from "./errors";
 import { GeneratedLinkoraClient } from "./generated/client";
-import type { Profile, Post, Pool } from "./types";
+import type { Profile, Post, Pool, GovParameter, GovProposal } from "./types";
 
 const DEFAULT_NETWORK = "Test SDF Network ; September 2015";
 
@@ -80,10 +80,14 @@ export class LinkoraClient extends GeneratedLinkoraClient {
     }
   }
 
-  // ── DM key methods (not yet in generated client) ─────────────────────────
+  // ── DM key methods ───────────────────────────────────────────────────────
 
   async getDmKey(address: string): Promise<Uint8Array | null> {
-    return super.getDmKey(address);
+    try {
+      return await super.getDmKey(address);
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -94,6 +98,37 @@ export class LinkoraClient extends GeneratedLinkoraClient {
       throw new Error("X25519 public key must be exactly 32 bytes");
     }
     return super.publishDmKey(user, x25519PubKey);
+  }
+
+  // ── Governance convenience overrides ──────────────────────────────────────
+
+  govPropose(
+    proposer: string,
+    parameter: GovParameter,
+    newValue: number | bigint,
+    newAddress: string | null
+  ): string {
+    return super.govPropose(proposer, parameter, BigInt(newValue), newAddress);
+  }
+
+  govVote(voter: string, proposalId: number, support: boolean): string {
+    return super.govVote(voter, BigInt(proposalId), support);
+  }
+
+  govExecute(proposalId: number): string {
+    return super.govExecute(BigInt(proposalId));
+  }
+
+  govGetProposal(proposalId: number): Promise<GovProposal> {
+    return super.govGetProposal(BigInt(proposalId));
+  }
+
+  effectiveQuorum(proposalId: number): Promise<number> {
+    return super.effectiveQuorum(BigInt(proposalId));
+  }
+
+  govVeto(signers: string[], poolId: string, proposalId: number): string {
+    return super.govVeto(signers, poolId, BigInt(proposalId));
   }
 
   // ── Override write methods with number→bigint conversions ─────────────────

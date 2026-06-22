@@ -4,3 +4,4 @@ export * from "./errors";
 export * from "./mini-apps/validateManifest";
 export * from "./generated/events";
 export * as dm from "./dm";
+export type { ConversationMessage } from "./dm";

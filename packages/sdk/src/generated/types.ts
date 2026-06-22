@@ -3,6 +3,54 @@
 
 // ── Enums ───────────────────────────────────────────────────
 
+export enum GovStatus {
+  Active = "Active",
+  Passed = "Passed",
+  Executed = "Executed",
+  Vetoed = "Vetoed",
+  Failed = "Failed",
+}
+
+export enum StorageKey {
+  Post = "Post",
+  Profile = "Profile",
+  Following = "Following",
+  Followers = "Followers",
+  Pool = "Pool",
+  Like = "Like",
+  AuthorPosts = "AuthorPosts",
+  Blocks = "Blocks",
+  UsernameIndex = "UsernameIndex",
+  TipCooldown = "TipCooldown",
+  Edge = "Edge",
+  FollowingCount = "FollowingCount",
+  FollowersCount = "FollowersCount",
+  FollowingIdx = "FollowingIdx",
+  FollowersIdx = "FollowersIdx",
+  FollowingPos = "FollowingPos",
+  FollowersPos = "FollowersPos",
+  GraphMigrated = "GraphMigrated",
+  DmPublicKey = "DmPublicKey",
+  GovProposal = "GovProposal",
+  GovVote = "GovVote",
+  GovConfig = "GovConfig",
+  GovProposalCount = "GovProposalCount",
+}
+
+export enum GovParameter {
+  FeeBps = "FeeBps",
+  Treasury = "Treasury",
+  TipCooldownWindow = "TipCooldownWindow",
+  GovQuorum = "GovQuorum",
+  GovTimeLock = "GovTimeLock",
+  GovVoteWindow = "GovVoteWindow",
+}
+
+export enum ProposalStatus {
+  Pending = "Pending",
+  Executed = "Executed",
+}
+
 // ── Structs / Contract Types ───────────────────────────────
 
 export interface Pool {
@@ -25,4 +73,34 @@ export interface Profile {
   address: string;
   creator_token: string;
   username: string;
+}
+
+export interface Proposal {
+  amount: bigint;
+  id: bigint;
+  pool_id: string;
+  proposer: string;
+  recipient: string;
+  signers: string[];
+  status: ProposalStatus;
+}
+
+export interface GovConfig {
+  quorum: number;
+  quorum_decay_rate_bps: number;
+  quorum_floor: number;
+  time_lock_ledgers: number;
+  vote_window_ledgers: number;
+}
+
+export interface GovProposal {
+  created_ledger: number;
+  id: bigint;
+  new_address: string | null;
+  new_value: bigint;
+  parameter: GovParameter;
+  proposer: string;
+  status: GovStatus;
+  votes_against: number;
+  votes_for: number;
 }
