@@ -3255,7 +3255,10 @@ fn test_profile_expiry_detection() {
     std::println!("Ledger Sequence: {}", env.ledger().sequence());
     env.as_contract(&client.address, || {
         std::println!("Has Profile Key: {}", env.storage().persistent().has(&key));
-        std::println!("Profile Key TTL: {}", env.storage().persistent().get_ttl(&key));
+        std::println!(
+            "Profile Key TTL: {}",
+            env.storage().persistent().get_ttl(&key)
+        );
     });
 
     // Profile should be retrievable initially
@@ -3270,7 +3273,10 @@ fn test_profile_expiry_detection() {
     std::println!("Ledger Sequence: {}", env.ledger().sequence());
     env.as_contract(&client.address, || {
         std::println!("Has Profile Key: {}", env.storage().persistent().has(&key));
-        std::println!("Profile Key TTL: {}", env.storage().persistent().get_ttl(&key));
+        std::println!(
+            "Profile Key TTL: {}",
+            env.storage().persistent().get_ttl(&key)
+        );
     });
 
     // Calling try_get_profile should fail with RentError::Expired (error code 1)
