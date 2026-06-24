@@ -1984,6 +1984,10 @@ impl LinkoraContract {
             token,
             amount,
             extended_to_ledger,
+        }
+        .publish(&env);
+    }
+
     pub fn report_post(
         env: Env,
         reporter: Address,
@@ -2201,6 +2205,8 @@ impl LinkoraContract {
         }
 
         keys
+    }
+
     pub fn review_report(
         env: Env,
         signers: Vec<Address>,
