@@ -27,6 +27,7 @@ export interface Post {
   like_count: bigint;
   created_ledger: number;
   deleted_ledger: number | null;
+  content: string;
 }
 
 export interface Like {
@@ -91,6 +92,11 @@ export interface Database {
     limit: number;
     offset: number;
   }): Promise<{ posts: Post[]; total: number }>;
+  listPostsCursor(filters: {
+    author?: string;
+    limit: number;
+    cursor?: number;
+  }): Promise<{ posts: Post[]; total: number; hasMore: boolean }>;
   getFollowers(
     address: string,
     limit: number,

@@ -172,6 +172,7 @@ export class PostgresDatabase implements Database {
       SELECT
         id,
         author,
+        content,
         deleted_at IS NOT NULL AS deleted,
         tip_total,
         like_count,
@@ -189,6 +190,7 @@ export class PostgresDatabase implements Database {
     return {
       id: BigInt(row.id),
       author: row.author,
+      content: row.content,
       deleted: row.deleted,
       tip_total: BigInt(row.tip_total),
       like_count: BigInt(row.like_count),
@@ -219,6 +221,7 @@ export class PostgresDatabase implements Database {
       SELECT
         id,
         author,
+        content,
         deleted_at IS NOT NULL AS deleted,
         tip_total,
         like_count,
@@ -235,6 +238,7 @@ export class PostgresDatabase implements Database {
     const posts: Post[] = res.rows.map((row) => ({
       id: BigInt(row.id),
       author: row.author,
+      content: row.content,
       deleted: row.deleted,
       tip_total: BigInt(row.tip_total),
       like_count: BigInt(row.like_count),
@@ -243,6 +247,97 @@ export class PostgresDatabase implements Database {
     }));
 
     return { posts, total };
+  }
+
+  async listPostsCursor(filters: {
+    author?: string;
+    limit: number;
+    cursor?: number;
+  }): Promise<{ posts: Post[]; total: number; hasMore: boolean }> {
+    const { author, limit, cursor } = filters;
+
+    const totalRes = await this.pool.query(
+      `
+      SELECT COUNT(*)::int AS total
+      FROM posts
+      WHERE ($1::text IS NULL OR author = $1)
+      `,
+      [author ?? null]
+    );
+    const total = totalRes.rows[0]?.total ?? 0;
+
+    if (cursor !== undefined) {
+      const res = await this.pool.query(
+        `
+        SELECT
+          id,
+          author,
+          content,
+          deleted_at IS NOT NULL AS deleted,
+          tip_total,
+          like_count,
+          extract(epoch from created_at)::bigint AS created_ledger,
+          CASE WHEN deleted_at IS NULL THEN NULL ELSE extract(epoch from deleted_at)::bigint END AS deleted_ledger
+        FROM posts
+        WHERE ($1::text IS NULL OR author = $1)
+          AND created_at < to_timestamp($2)
+        ORDER BY created_at DESC
+        LIMIT $3
+        `,
+        [author ?? null, cursor, limit + 1]
+      );
+
+      const hasMore = res.rows.length > limit;
+      const rows = hasMore ? res.rows.slice(0, limit) : res.rows;
+
+      const posts: Post[] = rows.map((row) => ({
+        id: BigInt(row.id),
+        author: row.author,
+        content: row.content,
+        deleted: row.deleted,
+        tip_total: BigInt(row.tip_total),
+        like_count: BigInt(row.like_count),
+        created_ledger: Number(row.created_ledger),
+        deleted_ledger: row.deleted_ledger === null ? null : Number(row.deleted_ledger),
+      }));
+
+      return { posts, total, hasMore };
+    }
+
+    const res = await this.pool.query(
+      `
+      SELECT
+        id,
+        author,
+        content,
+        deleted_at IS NOT NULL AS deleted,
+        tip_total,
+        like_count,
+        extract(epoch from created_at)::bigint AS created_ledger,
+        CASE WHEN deleted_at IS NULL THEN NULL ELSE extract(epoch from deleted_at)::bigint END AS deleted_ledger
+      FROM posts
+      WHERE ($1::text IS NULL OR author = $1)
+      ORDER BY created_at DESC
+      LIMIT $2
+      `,
+      [author ?? null, limit + 1]
+    );
+
+    const hasMore = res.rows.length > limit;
+    const rows = hasMore ? res.rows.slice(0, limit) : res.rows;
+
+    const posts: Post[] = rows.map((row) => ({
+      id: BigInt(row.id),
+      author: row.author,
+      content: row.content,
+      deleted: row.deleted,
+      tip_total: BigInt(row.tip_total),
+      like_count: BigInt(row.like_count),
+      created_ledger: Number(row.created_ledger),
+      deleted_ledger: row.deleted_ledger === null ? null : Number(row.deleted_ledger),
+    }));
+
+    return { posts, total, hasMore };
   }
 
   // ───────────────────────────────── Likes ────────────────────────────────────
