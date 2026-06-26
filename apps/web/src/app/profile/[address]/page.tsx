@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useProfile, type IndexerPost } from "@/hooks/useProfile";
 import { useWallet } from "@/hooks/useWallet";
-import { OptimisticStore, useOptimisticFollow } from "@/lib/OptimisticStore";
+import { OptimisticStore, useOptimisticFollow } from "@/lib/optimisticStore";
 import {
   useLinkoraEvent,
   useWatchAddress,
@@ -227,12 +227,6 @@ export default function ProfilePage() {
                 {copyFeedback ? "✓ Copied" : "📋 Copy"}
               </button>
             </p>
-
-            {profile.bio && (
-              <p id="profile-bio" className="mt-3 text-[var(--text-primary)] leading-relaxed">
-                {profile.bio}
-              </p>
-            )}
 
             {/* Follower / following counts */}
             <div className="flex gap-6 mt-4">

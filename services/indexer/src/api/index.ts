@@ -2,7 +2,7 @@ import express, { Request, Response, NextFunction } from "express";
 import { Pool as PgPool } from "pg";
 import { Database } from "../db";
 import { logger } from "../logger";
-import { rateLimitRead, rateLimitWrite } from "../middleware/rateLimit";
+import { rateLimit as apiLimiter, rateLimitRead, rateLimitWrite } from "../middleware/rateLimit";
 import { requireStellarAuth } from "../middleware/stellarAuth";
 import { createProfilesRouter } from "./routes/profiles";
 import { createPostsRouter } from "./routes/posts";
@@ -10,7 +10,7 @@ import { createFollowsRouter } from "./routes/follows";
 import { createPoolsRouter } from "./routes/pools";
 import { createStateRootRouter } from "./routes/stateRoot";
 import { createNotificationsRouter } from "./routes/notifications";
-import { createSearchRouter } from "./routes/search";
+import { createGovernanceRouter } from "./routes/governance";
 import { isFenced } from "../gossip";
 import {
   defaultNotificationService,
@@ -26,7 +26,22 @@ export function createApp(db: Database, pg?: PgPool): express.Application {
   app.use(express.json());
 
   app.get("/health", (_req: Request, res: Response): void => {
-    res.json({ status: "ok" });
+    const backfill = getBackfillState();
+    res.json({
+      status: "ok",
+      backfill: backfill.active
+        ? {
+            active: true,
+            fromLedger: backfill.fromLedger,
+            toLedger: backfill.toLedger,
+            processedLedgers: backfill.processedLedgers,
+            totalLedgers:
+              backfill.toLedger !== undefined && backfill.fromLedger !== undefined
+                ? backfill.toLedger - backfill.fromLedger + 1
+                : undefined,
+          }
+        : { active: false },
+    });
   });
 
   // Apply rate limiting to all /api routes.
@@ -48,7 +63,7 @@ export function createApp(db: Database, pg?: PgPool): express.Application {
   app.use("/api/posts", createPostsRouter(db));
   app.use("/api/follows", createFollowsRouter(db));
   app.use("/api/pools", createPoolsRouter(db));
-  app.use("/api/search", rateLimitRead, createSearchRouter(db));
+  app.use("/api/governance", createGovernanceRouter(db));
 
   const notificationService = pg
     ? new NotificationService({ deviceTokenStore: new PostgresDeviceTokenStore(pg) })
