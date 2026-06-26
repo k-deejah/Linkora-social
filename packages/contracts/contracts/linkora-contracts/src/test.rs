@@ -72,6 +72,23 @@ fn test_username_reverse_index_update() {
     );
 }
 
+// ── Issue #714: get_address_by_username returns None for unregistered username ─
+
+#[test]
+fn test_get_address_by_username_returns_none_for_unregistered() {
+    // Call get_address_by_username('unknown') on a fresh contract.
+    // Verify it returns None without panicking.
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let result = client.get_address_by_username(&String::from_str(&env, "unknown"));
+    assert_eq!(
+        result, None,
+        "get_address_by_username must return None for a username that was never registered"
+    );
+}
+
 #[test]
 #[should_panic(expected = "username taken")]
 fn test_username_duplicate_rejected() {
