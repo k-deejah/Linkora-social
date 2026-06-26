@@ -4262,3 +4262,268 @@ fn test_create_post_single_character_succeeds() {
     assert_eq!(post.author, author);
     assert_eq!(post.id, post_id);
 }
+
+// ── Issue #678: add_pool_admin duplicate rejection ────────────────────────────
+
+#[test]
+#[should_panic(expected = "admin already exists")]
+fn test_add_pool_admin_duplicate_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _) = setup_contract(&env);
+
+    let pool_admin1 = Address::generate(&env);
+    let pool_admin2 = Address::generate(&env);
+    let token = setup_token(&env, &pool_admin1);
+
+    let pool_id = symbol_short!("pool1");
+    client.create_pool(
+        &admin,
+        &pool_id,
+        &token,
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &2,
+    );
+
+    let initial_pool = client.get_pool(&pool_id).unwrap();
+    let initial_admin_count = initial_pool.admins.len();
+    assert_eq!(initial_admin_count, 2);
+
+    client.add_pool_admin(
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &pool_id,
+        &pool_admin1,
+    );
+}
+
+#[test]
+fn test_add_pool_admin_duplicate_preserves_admin_list_length() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _) = setup_contract(&env);
+
+    let pool_admin1 = Address::generate(&env);
+    let pool_admin2 = Address::generate(&env);
+    let token = setup_token(&env, &pool_admin1);
+
+    let pool_id = symbol_short!("pool2");
+    client.create_pool(
+        &admin,
+        &pool_id,
+        &token,
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &2,
+    );
+
+    let before_pool = client.get_pool(&pool_id).unwrap();
+    let before_count = before_pool.admins.len();
+
+    let result = client.try_add_pool_admin(
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &pool_id,
+        &pool_admin1,
+    );
+    assert!(result.is_err());
+
+    let after_pool = client.get_pool(&pool_id).unwrap();
+    assert_eq!(after_pool.admins.len(), before_count);
+}
+
+// ── Issue #679: like_post idempotency - duplicate like is ignored ─────────────
+
+#[test]
+fn test_like_post_idempotency_duplicate_ignored() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let author = Address::generate(&env);
+    let user = Address::generate(&env);
+    let post_id = client.create_post(&author, &String::from_str(&env, "Idempotency test"));
+
+    client.like_post(&user, &post_id);
+    assert_eq!(client.get_like_count(&post_id), 1);
+    assert!(client.has_liked(&user, &post_id));
+
+    client.like_post(&user, &post_id);
+    assert_eq!(client.get_like_count(&post_id), 1);
+    assert!(client.has_liked(&user, &post_id));
+}
+
+#[test]
+fn test_like_post_second_call_is_no_op() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let author = Address::generate(&env);
+    let user = Address::generate(&env);
+    let post_id = client.create_post(&author, &String::from_str(&env, "No-op test"));
+
+    client.like_post(&user, &post_id);
+    let like_count_after_first = client.get_like_count(&post_id);
+    let has_liked_after_first = client.has_liked(&user, &post_id);
+
+    client.like_post(&user, &post_id);
+    let like_count_after_second = client.get_like_count(&post_id);
+    let has_liked_after_second = client.has_liked(&user, &post_id);
+
+    assert_eq!(like_count_after_second, like_count_after_first);
+    assert_eq!(has_liked_after_second, has_liked_after_first);
+    assert_eq!(like_count_after_second, 1);
+}
+
+// ── Issue #680: remove_pool_admin threshold unreachable validation ────────────
+
+#[test]
+#[should_panic(expected = "threshold unreachable after removal")]
+fn test_remove_pool_admin_threshold_unreachable() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _) = setup_contract(&env);
+
+    let pool_admin1 = Address::generate(&env);
+    let pool_admin2 = Address::generate(&env);
+    let token = setup_token(&env, &pool_admin1);
+
+    let pool_id = symbol_short!("pool3");
+    client.create_pool(
+        &admin,
+        &pool_id,
+        &token,
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &2,
+    );
+
+    let pool = client.get_pool(&pool_id).unwrap();
+    assert_eq!(pool.admins.len(), 2);
+    assert_eq!(pool.threshold, 2);
+
+    client.remove_pool_admin(
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &pool_id,
+        &pool_admin1,
+    );
+}
+
+#[test]
+fn test_remove_pool_admin_threshold_valid_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _) = setup_contract(&env);
+
+    let pool_admin1 = Address::generate(&env);
+    let pool_admin2 = Address::generate(&env);
+    let pool_admin3 = Address::generate(&env);
+    let token = setup_token(&env, &pool_admin1);
+
+    let pool_id = symbol_short!("pool4");
+    client.create_pool(
+        &admin,
+        &pool_id,
+        &token,
+        &vec![
+            &env,
+            pool_admin1.clone(),
+            pool_admin2.clone(),
+            pool_admin3.clone(),
+        ],
+        &2,
+    );
+
+    let before_pool = client.get_pool(&pool_id).unwrap();
+    assert_eq!(before_pool.admins.len(), 3);
+
+    client.remove_pool_admin(
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &pool_id,
+        &pool_admin3,
+    );
+
+    let after_pool = client.get_pool(&pool_id).unwrap();
+    assert_eq!(after_pool.admins.len(), 2);
+    assert_eq!(after_pool.threshold, 2);
+    assert!(!after_pool.admins.iter().any(|a| a == pool_admin3));
+}
+
+// ── Issue #685: get_following/get_followers empty vec when offset beyond list ─
+
+#[test]
+fn test_get_following_offset_beyond_list_returns_empty() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let user_a = Address::generate(&env);
+    let user_b = Address::generate(&env);
+    let user_c = Address::generate(&env);
+    let user_d = Address::generate(&env);
+
+    client.follow(&user_a, &user_b);
+    client.follow(&user_a, &user_c);
+    client.follow(&user_a, &user_d);
+
+    let following = client.get_following(&user_a, &0, &10);
+    assert_eq!(following.len(), 3);
+
+    let empty_result = client.get_following(&user_a, &10, &10);
+    assert_eq!(empty_result.len(), 0);
+}
+
+#[test]
+fn test_get_followers_offset_beyond_list_returns_empty() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let user_a = Address::generate(&env);
+    let user_b = Address::generate(&env);
+    let user_c = Address::generate(&env);
+    let user_d = Address::generate(&env);
+
+    client.follow(&user_b, &user_a);
+    client.follow(&user_c, &user_a);
+    client.follow(&user_d, &user_a);
+
+    let followers = client.get_followers(&user_a, &0, &10);
+    assert_eq!(followers.len(), 3);
+
+    let empty_result = client.get_followers(&user_a, &10, &10);
+    assert_eq!(empty_result.len(), 0);
+}
+
+#[test]
+fn test_get_following_large_offset_no_panic() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let user_a = Address::generate(&env);
+    let user_b = Address::generate(&env);
+    let user_c = Address::generate(&env);
+
+    client.follow(&user_a, &user_b);
+    client.follow(&user_a, &user_c);
+
+    let result = client.get_following(&user_a, &100, &10);
+    assert_eq!(result.len(), 0);
+}
+
+#[test]
+fn test_get_followers_large_offset_no_panic() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let user_a = Address::generate(&env);
+    let user_b = Address::generate(&env);
+
+    client.follow(&user_b, &user_a);
+
+    let result = client.get_followers(&user_a, &100, &10);
+    assert_eq!(result.len(), 0);
+}
