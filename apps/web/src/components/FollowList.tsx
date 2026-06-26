@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { LinkoraClient } from "linkora-sdk";
-import { OptimisticStore } from "@/lib/optimisticStore";
+import { OptimisticStore } from "@/lib/OptimisticStore";
+
 
 export interface FollowUser {
   address: string;
