@@ -105,7 +105,8 @@ function decodeData(data: unknown): Record<string, unknown> {
 
 export function createDomainProcessor(
   pool: { query: (sql: string, params?: unknown[]) => Promise<QueryResultLike> },
-  notificationService: import("./notifications/service").NotificationService
+  notificationService: import("./notifications/service").NotificationService,
+  db?: Database
 ): (client: PgClientLike, event: IngestEvent) => Promise<void> {
   return async (client: PgClientLike, event: IngestEvent): Promise<void> => {
     // Decode topics and data so they work with both real RPC XDR and unit test JS objects
@@ -331,3 +332,4 @@ export function createDomainProcessor(
     }
   };
 }
+
