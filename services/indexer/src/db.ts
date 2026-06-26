@@ -55,6 +55,25 @@ export interface Pool {
   updated_ledger: number;
 }
 
+export interface GovernanceProposal {
+  proposal_id: bigint;
+  proposer: string;
+  parameter: string;
+  new_value: bigint;
+  votes_for: bigint;
+  votes_against: bigint;
+  status: string; // 'Active', 'Passed', 'Executed', 'Vetoed', 'Failed'
+  created_ledger: number;
+  updated_ledger: number;
+}
+
+export interface GovernanceVote {
+  proposal_id: bigint;
+  voter: string;
+  support: boolean;
+  ledger: number;
+}
+
 export interface Database {
   // Profiles
   upsertProfile(profile: Profile): Promise<void>;
@@ -83,6 +102,21 @@ export interface Database {
   getPool(pool_id: string): Promise<Pool | null>;
   addPoolAdmin(pool_id: string, admin: string, ledger: number): Promise<void>;
   removePoolAdmin(pool_id: string, admin: string, ledger: number): Promise<void>;
+
+  // Governance
+  upsertGovernanceProposal(
+    proposal: Omit<GovernanceProposal, "votes_for" | "votes_against">
+  ): Promise<void>;
+  updateGovernanceProposalStatus(
+    proposal_id: bigint,
+    status: string,
+    ledger: number
+  ): Promise<void>;
+  insertGovernanceVote(vote: GovernanceVote): Promise<boolean>; // returns true if newly inserted
+  listGovernanceProposals(filters: {
+    limit: number;
+    offset: number;
+  }): Promise<{ proposals: GovernanceProposal[]; total: number }>;
 
   // Query methods used by the REST API
   getProfile(address: string): Promise<Profile | null>;

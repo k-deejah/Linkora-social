@@ -394,4 +394,118 @@ export class PostgresDatabase implements Database {
       [admin, ledger, pool_id]
     );
   }
+
+  // ────────────────────────────── Governance ──────────────────────────────────
+
+  async upsertGovernanceProposal(
+    proposal: Omit<GovernanceProposal, "votes_for" | "votes_against">
+  ): Promise<void> {
+    await this.pool.query(
+      `
+      INSERT INTO governance_proposals (proposal_id, proposer, parameter, new_value, status, created_ledger, updated_ledger)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (proposal_id) DO UPDATE SET
+        proposer = EXCLUDED.proposer,
+        parameter = EXCLUDED.parameter,
+        new_value = EXCLUDED.new_value,
+        status = EXCLUDED.status,
+        updated_ledger = EXCLUDED.updated_ledger
+      `,
+      [
+        proposal.proposal_id.toString(),
+        proposal.proposer,
+        proposal.parameter,
+        proposal.new_value.toString(),
+        proposal.status,
+        proposal.created_ledger,
+        proposal.updated_ledger,
+      ]
+    );
+  }
+
+  async updateGovernanceProposalStatus(
+    proposal_id: bigint,
+    status: string,
+    ledger: number
+  ): Promise<void> {
+    await this.pool.query(
+      `
+      UPDATE governance_proposals
+      SET status = $1, updated_ledger = $2
+      WHERE proposal_id = $3
+      `,
+      [status, ledger, proposal_id.toString()]
+    );
+  }
+
+  async insertGovernanceVote(vote: GovernanceVote): Promise<boolean> {
+    const res = await this.pool.query(
+      `
+      INSERT INTO governance_votes (proposal_id, voter, support, ledger)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (proposal_id, voter) DO NOTHING
+      RETURNING proposal_id
+      `,
+      [vote.proposal_id.toString(), vote.voter, vote.support, vote.ledger]
+    );
+
+    const inserted = (res.rowCount ?? 0) > 0;
+    if (inserted) {
+      if (vote.support) {
+        await this.pool.query(
+          `
+          UPDATE governance_proposals
+          SET votes_for = votes_for + 1, updated_ledger = $1
+          WHERE proposal_id = $2
+          `,
+          [vote.ledger, vote.proposal_id.toString()]
+        );
+      } else {
+        await this.pool.query(
+          `
+          UPDATE governance_proposals
+          SET votes_against = votes_against + 1, updated_ledger = $1
+          WHERE proposal_id = $2
+          `,
+          [vote.ledger, vote.proposal_id.toString()]
+        );
+      }
+    }
+    return inserted;
+  }
+
+  async listGovernanceProposals(filters: {
+    limit: number;
+    offset: number;
+  }): Promise<{ proposals: GovernanceProposal[]; total: number }> {
+    const { limit, offset } = filters;
+    const totalRes = await this.pool.query(
+      `SELECT COUNT(*)::int AS total FROM governance_proposals`
+    );
+    const total = totalRes.rows[0]?.total ?? 0;
+
+    const res = await this.pool.query(
+      `
+      SELECT proposal_id, proposer, parameter, new_value, votes_for, votes_against, status, created_ledger, updated_ledger
+      FROM governance_proposals
+      ORDER BY proposal_id DESC
+      OFFSET $1 LIMIT $2
+      `,
+      [offset, limit]
+    );
+
+    const proposals: GovernanceProposal[] = res.rows.map((row) => ({
+      proposal_id: BigInt(row.proposal_id),
+      proposer: row.proposer,
+      parameter: row.parameter,
+      new_value: BigInt(row.new_value),
+      votes_for: BigInt(row.votes_for),
+      votes_against: BigInt(row.votes_against),
+      status: row.status,
+      created_ledger: row.created_ledger,
+      updated_ledger: row.updated_ledger,
+    }));
+
+    return { proposals, total };
+  }
 }
