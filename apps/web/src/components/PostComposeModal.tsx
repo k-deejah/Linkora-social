@@ -15,7 +15,8 @@ import {
 import { signTransaction } from "@stellar/freighter-api";
 
 const MAX_CONTENT_LENGTH = 280;
-const WARNING_THRESHOLD = 260;
+const AMBER_THRESHOLD = 50;
+const RED_THRESHOLD = 10;
 
 const RPC_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? "https://soroban-testnet.stellar.org";
 const NETWORK_PASSPHRASE =
@@ -35,6 +36,7 @@ interface PublishState {
   status: SubmitStatus;
   errorMsg: string;
   postId: string | null;
+  txHash: string | null;
 }
 
 export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModalProps) {
@@ -45,11 +47,14 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
     status: "idle",
     errorMsg: "",
     postId: null,
+    txHash: null,
   });
 
   const charCount = content.length;
-  const isNearLimit = charCount >= WARNING_THRESHOLD && charCount <= MAX_CONTENT_LENGTH;
+  const remaining = MAX_CONTENT_LENGTH - charCount;
   const isOverLimit = charCount > MAX_CONTENT_LENGTH;
+  const isRed = remaining <= RED_THRESHOLD;
+  const isAmber = !isRed && remaining <= AMBER_THRESHOLD;
   const isEmpty = content.trim().length === 0;
   const isDisabled = isEmpty || isOverLimit || publishState.status !== "idle";
 
@@ -148,6 +153,7 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
           status: "success",
           errorMsg: "",
           postId: newPostId,
+          txHash: sendResponse.hash,
         });
 
         setTimeout(() => {
@@ -160,6 +166,7 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
           status: "error",
           errorMsg: message,
           postId: null,
+          txHash: null,
         });
       }
     },
@@ -167,7 +174,7 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
   );
 
   const handleTryAgain = () => {
-    setPublishState({ status: "idle", errorMsg: "", postId: null });
+    setPublishState({ status: "idle", errorMsg: "", postId: null, txHash: null });
   };
 
   if (!isOpen) return null;
@@ -217,9 +224,10 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
             {/* Character counter */}
             <div className="absolute bottom-3 right-4 flex items-center gap-2">
               <span
-                className={`text-xs font-mono ${isOverLimit ? "text-red-500" : isNearLimit ? "text-yellow-500" : "text-[var(--text-muted)]"}`}
+                className={`text-xs font-mono ${isRed ? "text-red-500" : isAmber ? "text-yellow-500" : "text-[var(--text-muted)]"}`}
+                aria-label={`${remaining} characters remaining`}
               >
-                {charCount} / {MAX_CONTENT_LENGTH}
+                {remaining}
               </span>
             </div>
           </div>
@@ -250,9 +258,21 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
           )}
 
           {publishState.status === "success" && (
-            <div className="bg-green-500/10 border border-green-500/20 text-green-500 rounded-xl p-3 text-sm flex items-center gap-2">
-              <span>✅</span>
-              <span>Post published successfully! Redirecting...</span>
+            <div className="bg-green-500/10 border border-green-500/20 text-green-500 rounded-xl p-3 text-sm flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <span>✅</span>
+                <span>Post published successfully! Redirecting...</span>
+              </div>
+              {publishState.txHash && (
+                <a
+                  href={`https://stellar.expert/explorer/testnet/tx/${publishState.txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-green-400 underline text-xs self-start hover:text-green-300 transition-colors"
+                >
+                  View on Stellar Expert ↗
+                </a>
+              )}
             </div>
           )}
 

@@ -13,7 +13,19 @@ import {
 } from "@/lib/LinkoraEventSubscriber";
 import { FollowDrawer } from "@/components/profile/FollowDrawer";
 import { CreatorTokenPanel } from "@/components/profile/CreatorTokenPanel";
-import { LinkoraClient } from "../../../../../../packages/sdk/src/client";
+import {
+  TransactionBuilder,
+  BASE_FEE,
+  Contract,
+  Address,
+  rpc as StellarRpc,
+} from "@stellar/stellar-sdk";
+import { signTransaction } from "@stellar/freighter-api";
+
+const CONTRACT_ID = process.env.NEXT_PUBLIC_CONTRACT_ID || "CDUMMY";
+const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "https://soroban-testnet.stellar.org";
+const NETWORK_PASSPHRASE =
+  process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015";
 
 /* ────────────────────────────────────────────────────────────────────────── */
 /*  Helpers                                                                  */
@@ -46,6 +58,7 @@ export default function ProfilePage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerType, setDrawerType] = useState<"followers" | "following">("followers");
   const [copyFeedback, setCopyFeedback] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
 
   /* ── Optimistic follow state ────────────────────────────────────────── */
 
@@ -78,42 +91,77 @@ export default function ProfilePage() {
   /* ── Follow / unfollow ──────────────────────────────────────────────── */
 
   const handleFollowToggle = useCallback(async () => {
-    if (!currentUserAddress) return;
+    if (!currentUserAddress || followLoading) return;
 
     const key = `${currentUserAddress}:${address}`;
     const newIsFollowing = !followState.isFollowing;
 
-    // Optimistic UI
+    // Optimistic UI update
     OptimisticStore.setFollowState(key, {
       isFollowing: newIsFollowing,
       followersCount: followState.followersCount + (newIsFollowing ? 1 : -1),
       followingCount: followState.followingCount,
     });
 
+    setFollowLoading(true);
+
     try {
-      const client = new LinkoraClient({
-        contractId: process.env.NEXT_PUBLIC_CONTRACT_ID || "CDUMMY",
-        rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || "https://soroban-testnet.stellar.org",
+      const server = new StellarRpc.Server(RPC_URL);
+      const account = await server.getAccount(currentUserAddress);
+
+      const contract = new Contract(CONTRACT_ID);
+      const op = contract.call(
+        newIsFollowing ? "follow" : "unfollow",
+        Address.fromString(currentUserAddress).toScVal(),
+        Address.fromString(address).toScVal()
+      );
+
+      const tx = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: NETWORK_PASSPHRASE,
+      })
+        .addOperation(op)
+        .setTimeout(30)
+        .build();
+
+      const simulated = await server.simulateTransaction(tx);
+      if (StellarRpc.Api.isSimulationError(simulated)) {
+        throw new Error(`Simulation failed: ${simulated.error}`);
+      }
+
+      const finalTx = StellarRpc.assembleTransaction(tx, simulated).build();
+      const xdrString = finalTx.toXDR();
+
+      const signedXdr = await signTransaction(xdrString, {
+        networkPassphrase: NETWORK_PASSPHRASE,
       });
 
-      // These methods return transaction XDR envelopes.
-      // In production, this XDR would be signed via Freighter and submitted.
-      const _txXdr = newIsFollowing
-        ? client.follow(currentUserAddress, address)
-        : client.unfollow(currentUserAddress, address);
+      const signedTx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+      const sendResponse = await server.sendTransaction(signedTx);
 
-      // TODO: sign & submit via Freighter — same pattern as mobile's FollowButton.
-      // For now we treat the optimistic update as the final state.
+      if (sendResponse.status === "ERROR") {
+        throw new Error("Transaction failed to submit");
+      }
+
+      let status: string = sendResponse.status;
+      const startTime = Date.now();
+      while (status === "PENDING" && Date.now() - startTime < 30000) {
+        await new Promise((r) => setTimeout(r, 1000));
+        const txResponse = await server.getTransaction(sendResponse.hash);
+        status = txResponse.status as string;
+      }
     } catch (error) {
       console.error("Follow/unfollow failed:", error);
-      // Rollback
+      // Rollback optimistic update
       OptimisticStore.setFollowState(key, {
         isFollowing: !newIsFollowing,
         followersCount: followState.followersCount,
         followingCount: followState.followingCount,
       });
+    } finally {
+      setFollowLoading(false);
     }
-  }, [currentUserAddress, address, followState]);
+  }, [currentUserAddress, address, followState, followLoading]);
 
   /* ── Copy address ───────────────────────────────────────────────────── */
 
@@ -262,18 +310,21 @@ export default function ProfilePage() {
               <button
                 onClick={handleFollowToggle}
                 id="follow-btn"
-                className={`px-6 py-2 rounded-full font-bold transition-all ${
+                disabled={followLoading}
+                className={`px-6 py-2 rounded-full font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                   followState.isFollowing
                     ? "bg-transparent border border-[var(--text-muted)] text-[var(--text-primary)] hover:bg-[var(--error)] hover:border-[var(--error)] hover:text-white"
                     : "bg-[var(--accent-coral)] text-white hover:opacity-90"
                 }`}
                 aria-label={
-                  followState.isFollowing
-                    ? `Unfollow ${profile.username}`
-                    : `Follow ${profile.username}`
+                  followLoading
+                    ? "Updating follow status..."
+                    : followState.isFollowing
+                      ? `Unfollow ${profile.username}`
+                      : `Follow ${profile.username}`
                 }
               >
-                {followState.isFollowing ? "Following" : "Follow"}
+                {followLoading ? "Updating..." : followState.isFollowing ? "Following" : "Follow"}
               </button>
             )}
           </div>
