@@ -37,6 +37,9 @@ function notify() {
 /*  Public API                                                               */
 /* ────────────────────────────────────────────────────────────────────────── */
 
+const pendingMap = new Map<string, boolean>();
+const legacyFollowingMap = new Map<string, boolean>();
+
 export const OptimisticStore = {
   setFollowState(key: string, state: FollowState) {
     followStateMap.set(key, state);
@@ -49,6 +52,23 @@ export const OptimisticStore = {
 
   clearFollowState(key: string) {
     followStateMap.delete(key);
+    notify();
+  },
+
+  // Legacy API for FollowList.tsx
+  subscribe,
+  isFollowing(targetAddress: string): boolean {
+    return legacyFollowingMap.get(targetAddress) ?? false;
+  },
+  setFollowing(targetAddress: string, isFollowing: boolean) {
+    legacyFollowingMap.set(targetAddress, isFollowing);
+    notify();
+  },
+  isPending(targetAddress: string): boolean {
+    return pendingMap.get(targetAddress) ?? false;
+  },
+  setPending(targetAddress: string, isPending: boolean) {
+    pendingMap.set(targetAddress, isPending);
     notify();
   },
 };
