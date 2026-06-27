@@ -8,6 +8,7 @@ import { OptimisticStore, useOptimisticLike, useOptimisticTip } from "@/lib/opti
 import { LinkoraClient } from "../../../../../packages/sdk/src/client";
 import { validateAmount, validateStellarAddress } from "@/lib/validate";
 import { FieldError } from "@/components/forms/FieldError";
+import { AnimatedList } from "@/components/AnimatedList";
 
 /* ────────────────────────────────────────────────────────────────────────── */
 /*  Config & Constants                                                       */
@@ -534,16 +535,29 @@ export default function FeedPage() {
             ) : (
               /* Feed list */
               <>
-                <div className="space-y-4">
-                  {posts.map((post) => (
-                    <InteractivePostCard
-                      key={post.id}
-                      post={post}
-                      currentUserAddress={currentUserAddress}
-                      onTipClick={handleOpenTipModal}
-                    />
-                  ))}
-                </div>
+                <AnimatedList
+                  items={posts}
+                  getKey={(post) => String(post.id)}
+                  className="space-y-4"
+                  renderItem={(post, state) => (
+                    <div
+                      key={String(post.id)}
+                      className={`animated-list-item ${
+                        state === "entering"
+                          ? "animated-list-item--entering"
+                          : state === "exiting"
+                            ? "animated-list-item--exiting"
+                            : ""
+                      }`}
+                    >
+                      <InteractivePostCard
+                        post={post}
+                        currentUserAddress={currentUserAddress}
+                        onTipClick={handleOpenTipModal}
+                      />
+                    </div>
+                  )}
+                />
 
                 {/* Infinite Scroll Sentinel / Loading More */}
                 {hasMore && (
