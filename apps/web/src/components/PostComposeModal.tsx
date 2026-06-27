@@ -180,7 +180,7 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="Compose post">
       <div className="bg-[var(--muted)] border border-[var(--border)] rounded-2xl w-full max-w-lg shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <header className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
@@ -191,6 +191,7 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
               publishState.status === "awaiting_signature" || publishState.status === "submitting"
             }
             className="text-[var(--text-muted)] hover:text-white transition-colors text-lg"
+            aria-label="Close compose modal"
           >
             ✕
           </button>
@@ -244,23 +245,23 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
 
           {/* Status Messages */}
           {publishState.status === "awaiting_signature" && (
-            <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 rounded-xl p-3 text-sm flex items-center gap-2">
-              <span className="animate-pulse">⏳</span>
+            <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 rounded-xl p-3 text-sm flex items-center gap-2" role="status">
+              <span className="animate-pulse" aria-hidden="true">⏳</span>
               <span>Waiting for Freighter wallet signing...</span>
             </div>
           )}
 
           {publishState.status === "submitting" && (
-            <div className="bg-blue-500/10 border border-blue-500/20 text-blue-500 rounded-xl p-3 text-sm flex items-center gap-2">
-              <span className="animate-spin">🔄</span>
+            <div className="bg-blue-500/10 border border-blue-500/20 text-blue-500 rounded-xl p-3 text-sm flex items-center gap-2" role="status">
+              <span className="animate-spin" aria-hidden="true">🔄</span>
               <span>Submitting transaction to Stellar blockchain...</span>
             </div>
           )}
 
           {publishState.status === "success" && (
-            <div className="bg-green-500/10 border border-green-500/20 text-green-500 rounded-xl p-3 text-sm flex flex-col gap-2">
+            <div className="bg-green-500/10 border border-green-500/20 text-green-500 rounded-xl p-3 text-sm flex flex-col gap-2" role="status">
               <div className="flex items-center gap-2">
-                <span>✅</span>
+                <span aria-hidden="true">✅</span>
                 <span>Post published successfully! Redirecting...</span>
               </div>
               {publishState.txHash && (
@@ -277,9 +278,9 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
           )}
 
           {publishState.status === "error" && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl p-3 text-sm flex flex-col gap-2">
+            <div className="bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl p-3 text-sm flex flex-col gap-2" role="alert">
               <div className="flex items-center gap-2">
-                <span>⚠️</span>
+                <span aria-hidden="true">⚠️</span>
                 <span className="break-all">{publishState.errorMsg}</span>
               </div>
               <button
