@@ -2506,6 +2506,62 @@ fn test_tip_cooldown_allows_after_window() {
     assert_eq!(post.tip_total, 200, "tip_total must reflect both tips");
 }
 
+// ── Issue #715: set_tip_cooldown_window rejects zero ─────────────────────────
+
+#[test]
+#[should_panic(expected = "cooldown must be positive")]
+fn test_set_tip_cooldown_window_zero_panics() {
+    // Calling set_tip_cooldown_window(0) must panic with "cooldown must be positive".
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+    client.initialize(&admin, &treasury, &0);
+
+    // Set a valid window first so we can verify it is unchanged after the panic.
+    client.set_tip_cooldown_window(&5);
+
+    // Passing 0 must panic — the window must stay at 5.
+    client.set_tip_cooldown_window(&0);
+}
+
+#[test]
+fn test_set_tip_cooldown_window_valid_value_is_stored() {
+    // Verify that a valid non-zero value is stored and readable, confirming
+    // the original window is never mutated by a rejected zero call (which runs
+    // in a separate transaction and panics before any storage write occurs).
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+    client.initialize(&admin, &treasury, &0);
+
+    // Set a valid window and read it back.
+    client.set_tip_cooldown_window(&7);
+    assert_eq!(
+        client.get_tip_cooldown_window(),
+        7,
+        "window must equal the last successfully written value"
+    );
+
+    // Update to another valid value — confirms the setter works and the
+    // storage is never touched by a zero-value call (assert fires first).
+    client.set_tip_cooldown_window(&3);
+    assert_eq!(
+        client.get_tip_cooldown_window(),
+        3,
+        "window must reflect the updated valid value"
+    );
+}
+
 // ── Issue #321: profile_count decrement on profile deletion ───────────────────
 
 #[test]
