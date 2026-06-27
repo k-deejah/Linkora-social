@@ -5,7 +5,6 @@ import Link from "next/link";
 import { LinkoraClient } from "linkora-sdk";
 import { OptimisticStore } from "@/lib/optimisticStore";
 
-
 export interface FollowUser {
   address: string;
   username: string;
@@ -169,7 +168,7 @@ export function FollowList({ address, type }: FollowListProps) {
   const showPagination = total > PAGE_SIZE || page > 0 || hasMore;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-xl">
+    <div className="container mx-auto px-4 py-6 md:py-8 max-w-xl">
       <header className="flex flex-col gap-2 mb-6">
         <Link
           href={`/profile/${address}`}
@@ -253,7 +252,7 @@ export function FollowList({ address, type }: FollowListProps) {
                       handleToggleFollow(user);
                     }}
                     disabled={isPending}
-                    className={`px-4 py-1.5 rounded-lg font-semibold text-sm transition-all flex-shrink-0 min-w-[100px] h-[36px] flex items-center justify-center ${
+                    className={`w-full sm:w-auto px-4 py-1.5 rounded-lg font-semibold text-sm transition-all flex-shrink-0 h-[36px] flex items-center justify-center ${
                       isFollowing
                         ? "bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-250"
                         : "bg-indigo-600 text-white hover:bg-indigo-700"
