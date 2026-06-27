@@ -87,7 +87,7 @@ const styles: Record<string, CSSProperties> = {
   main: {
     minHeight: "100vh",
     background: "var(--color-surface-1)",
-    padding: "var(--space-8) var(--space-4)",
+    padding: "var(--space-6) var(--space-4) var(--space-8)",
   },
   header: {
     maxWidth: "1100px",
@@ -119,6 +119,7 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     gap: "var(--space-3)",
     flexShrink: 0,
+    flexWrap: "wrap" as const,
   },
   refreshBtn: {
     padding: "var(--space-2) var(--space-4)",

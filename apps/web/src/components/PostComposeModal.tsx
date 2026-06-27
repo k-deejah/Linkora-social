@@ -183,7 +183,7 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="Compose post">
       <div className="bg-[var(--muted)] border border-[var(--border)] rounded-2xl w-full max-w-lg shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
+        <header className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-[var(--border)]">
           <button
             type="button"
             onClick={onClose}
@@ -200,7 +200,7 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
         </header>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="p-4 md:p-6 flex flex-col gap-4 overflow-y-auto">
           {/* Author info */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[var(--accent)] flex items-center justify-center text-white font-bold text-sm">

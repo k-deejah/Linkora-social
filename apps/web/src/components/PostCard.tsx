@@ -77,7 +77,7 @@ function formatAuthor(author: string): string {
 
 export function PostCard({ post, query, onLike, onTip, isLiked, isTipping }: PostCardProps) {
   return (
-    <article className="rounded-xl border border-[var(--border)] bg-[var(--muted)] p-5 shadow-lg transition-all duration-300 hover:border-violet-500/40 hover:shadow-violet-950/10">
+    <article className="rounded-xl border border-[var(--border)] bg-[var(--muted)] p-3 md:p-4 lg:p-5 shadow-lg transition-all duration-300 hover:border-violet-500/40 hover:shadow-violet-950/10">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-[var(--text-muted)]">
         <span
           className="font-medium hover:text-[var(--foreground)] transition-colors"
@@ -124,7 +124,7 @@ export function PostCard({ post, query, onLike, onTip, isLiked, isTipping }: Pos
 
 export function PostCardSkeleton() {
   return (
-    <div className="animate-pulse rounded-xl border border-[var(--border)] bg-[var(--muted)] p-5 space-y-4">
+    <div className="animate-pulse rounded-xl border border-[var(--border)] bg-[var(--muted)] p-3 md:p-4 lg:p-5 space-y-4">
       <div className="flex justify-between">
         <div className="h-4 w-28 rounded bg-zinc-800" />
         <div className="h-4 w-20 rounded bg-zinc-800" />

@@ -14,13 +14,19 @@ function buildMessage(notification: Notification): React.ReactNode {
   const { type, postId, proposalId, parameter, amountXlm, excerpt } = notification;
 
   const actorLink = (
-    <Link href={`/profile/${notification.actor}`} className="font-medium text-violet-400 hover:underline">
+    <Link
+      href={`/profile/${notification.actor}`}
+      className="font-medium text-violet-400 hover:underline"
+    >
       @{actor}
     </Link>
   );
 
   const postRef = (
-    <Link href={postId !== undefined ? `/posts/${postId}` : "#"} className="font-medium text-violet-400 hover:underline">
+    <Link
+      href={postId !== undefined ? `/posts/${postId}` : "#"}
+      className="font-medium text-violet-400 hover:underline"
+    >
       {excerpt ? `"${excerpt}"` : postId !== undefined ? `post #${postId}` : "a post"}
     </Link>
   );
@@ -29,13 +35,22 @@ function buildMessage(notification: Notification): React.ReactNode {
     case "follow":
       return <>{actorLink} started following you</>;
     case "like":
-      return <>{actorLink} liked your post — {postRef}</>;
+      return (
+        <>
+          {actorLink} liked your post — {postRef}
+        </>
+      );
     case "tip":
-      return <>{actorLink} tipped {amountXlm ?? "?"} XLM on {postRef}</>;
+      return (
+        <>
+          {actorLink} tipped {amountXlm ?? "?"} XLM on {postRef}
+        </>
+      );
     case "governance":
       return (
         <>
-          {actorLink} {parameter ? `executed proposal for ${parameter}` : "created a new governance proposal"} —{" "}
+          {actorLink}{" "}
+          {parameter ? `executed proposal for ${parameter}` : "created a new governance proposal"} —{" "}
           <Link href="/governance" className="font-medium text-violet-400 hover:underline">
             view proposal #{proposalId}
           </Link>
@@ -136,7 +151,7 @@ export default function NotificationsPage() {
   const groups = groupByDate(notifications);
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
+    <div className="mx-auto max-w-2xl px-4 py-6 md:py-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-[var(--foreground)]">Notifications</h1>
         {notifications.length > 0 && !markAllReadClicked && (

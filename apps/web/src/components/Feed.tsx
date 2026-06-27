@@ -67,6 +67,7 @@ export function Feed({ posts, loading, onLike, onTip, likedPosts = new Set() }: 
 const styles: Record<string, React.CSSProperties> = {
   container: {
     maxWidth: "600px",
+    width: "100%",
     margin: "0 auto",
     padding: "var(--spacing-md)",
   },

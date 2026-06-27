@@ -46,6 +46,9 @@ importers:
       "@linkora/types":
         specifier: workspace:*
         version: link:../../packages/types
+      "@react-native-community/netinfo":
+        specifier: ^12.0.1
+        version: 12.0.1(react-native@0.72.17(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(react@18.3.1))(react@18.3.1)
       "@walletconnect/sign-client":
         specifier: ^2.23.9
         version: 2.23.9(typescript@5.9.3)(zod@3.25.76)
@@ -2048,7 +2051,7 @@ packages:
       {
         integrity: sha512-+Lla7nYSiHZirgK+U/uYzsLv/X+HaJienbD5AKX1UQZHYfWaP+9uuQluRB4GrEVWF0GZ7vEVp/jzaOT9k/SQlg==,
       }
-    engines: { "0": node >=0.10.0 }
+    engines: { node: ">=0.10.0" }
 
   "@expo/cli@0.10.17":
     resolution:
@@ -3059,6 +3062,15 @@ packages:
       }
     engines: { node: ">=16" }
     hasBin: true
+
+  "@react-native-community/netinfo@12.0.1":
+    resolution:
+      {
+        integrity: sha512-P/3caXIvfYSJG8AWJVefukg+ZGRPs+M4Lp3pNJtgcTYoJxCjWrKQGNnCkj/Cz//zWa/avGed0i/wzm0T8vV2IQ==,
+      }
+    peerDependencies:
+      react: "*"
+      react-native: ">=0.59"
 
   "@react-native/assets-registry@0.72.0":
     resolution:
@@ -15823,6 +15835,11 @@ snapshots:
       - encoding
       - supports-color
       - utf-8-validate
+
+  "@react-native-community/netinfo@12.0.1(react-native@0.72.17(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(react@18.3.1))(react@18.3.1)":
+    dependencies:
+      react: 18.3.1
+      react-native: 0.72.17(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(react@18.3.1)
 
   "@react-native/assets-registry@0.72.0": {}
 

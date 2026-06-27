@@ -175,7 +175,7 @@ export function SearchPageClient() {
         />
       </div>
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="mb-6 flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-4">
         <div className="flex rounded-lg border border-[var(--border)] bg-[var(--muted)] p-1">
           <button
             type="button"
@@ -196,7 +196,7 @@ export function SearchPageClient() {
         </div>
 
         {activeTab === "posts" && (
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 w-full sm:w-auto">
             <label className="text-sm text-[var(--text-muted)]">
               Sort
               <select

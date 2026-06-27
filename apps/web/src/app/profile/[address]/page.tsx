@@ -180,7 +180,10 @@ export default function ProfilePage() {
       contractId: process.env.NEXT_PUBLIC_CONTRACT_ID || "CDUMMY",
       rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || "https://soroban-testnet.stellar.org",
     });
-    client.isBlocked(currentUserAddress, address).then(setIsBlocked).catch(() => setIsBlocked(false));
+    client
+      .isBlocked(currentUserAddress, address)
+      .then(setIsBlocked)
+      .catch(() => setIsBlocked(false));
   }, [currentUserAddress, address]);
 
   /* ── Block / Unblock ──────────────────────────────────────────────── */
@@ -303,7 +306,7 @@ export default function ProfilePage() {
         <section
           id="profile-header"
           aria-label="Profile header"
-          className="flex flex-col md:flex-row items-start md:items-center gap-6 bg-[var(--bg-secondary)] p-6 rounded-2xl border border-[var(--bg-tertiary)]"
+          className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6 bg-[var(--bg-secondary)] p-4 md:p-6 rounded-2xl border border-[var(--bg-tertiary)]"
         >
           {/* Avatar */}
           <img
@@ -360,13 +363,16 @@ export default function ProfilePage() {
           </div>
 
           {/* Follow / Unfollow + Overflow menu */}
-          <div className="mt-4 md:mt-0 shrink-0 flex items-center gap-2" aria-live="polite">
+          <div
+            className="mt-4 md:mt-0 w-full md:w-auto shrink-0 flex flex-wrap items-center gap-2"
+            aria-live="polite"
+          >
             {!isSelf && currentUserAddress && (
               <>
                 <button
                   onClick={handleFollowToggle}
                   id="follow-btn"
-                  className={`px-6 py-2 rounded-full font-bold transition-all ${
+                  className={`w-full sm:w-auto px-6 py-2 rounded-full font-bold transition-all ${
                     followState.isFollowing
                       ? "bg-transparent border border-[var(--text-muted)] text-[var(--text-primary)] hover:bg-[var(--error)] hover:border-[var(--error)] hover:text-white"
                       : "bg-[var(--accent-coral)] text-white hover:opacity-90"
@@ -388,8 +394,19 @@ export default function ProfilePage() {
                     aria-label="More actions"
                     aria-expanded={menuOpen}
                   >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z"
+                      />
                     </svg>
                   </button>
 
@@ -405,15 +422,37 @@ export default function ProfilePage() {
                           <span className="animate-pulse">Processing...</span>
                         ) : isBlocked ? (
                           <>
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              strokeWidth={1.5}
+                              stroke="currentColor"
+                              aria-hidden="true"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
+                              />
                             </svg>
                             Unblock @{profile.username}
                           </>
                         ) : (
                           <>
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              strokeWidth={1.5}
+                              stroke="currentColor"
+                              aria-hidden="true"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                              />
                             </svg>
                             Block @{profile.username}
                           </>
@@ -428,7 +467,7 @@ export default function ProfilePage() {
         </section>
 
         {/* ── Content grid ─────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mt-6 md:mt-8">
           {/* Posts feed */}
           <section className="md:col-span-2" aria-label="User posts" id="posts-section">
             <div className="border-b border-[var(--bg-tertiary)] mb-4">

@@ -88,6 +88,7 @@ function HeaderActions() {
 function AppNavigator() {
   const router = useRouter();
   const { address, connected } = useWallet();
+  const { isOffline } = useNetwork();
 
   useEffect(() => {
     let isMounted = true;
@@ -133,56 +134,63 @@ function AppNavigator() {
   }, [address, connected]);
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: true,
-        headerStyle: {
-          backgroundColor: "#0f172a",
-        },
-        headerTitleStyle: {
-          color: "#f8fafc",
-          fontWeight: "700",
-        },
-        headerTintColor: "#f8fafc",
-        headerRight: () => <HeaderActions />,
-        tabBarActiveTintColor: "#6366f1",
-        tabBarInactiveTintColor: "#9ca3af",
-        tabBarStyle: {
-          backgroundColor: "#0f172a",
-          borderTopColor: "#1e293b",
-        },
-      }}
-    >
-      <Tabs.Screen name="(tabs)/feed" options={{ title: "Feed", tabBarLabel: "Feed" }} />
-      <Tabs.Screen name="(tabs)/explore" options={{ title: "Explore", tabBarLabel: "Explore" }} />
-      <Tabs.Screen name="(tabs)/pools" options={{ title: "Pools", tabBarLabel: "Pools" }} />
-      <Tabs.Screen
-        name="(tabs)/mini-apps"
-        options={{ title: "Mini Apps", tabBarLabel: "Mini Apps" }}
-      />
-      <Tabs.Screen name="(tabs)/profile" options={{ title: "Profile", tabBarLabel: "Profile" }} />
-      <Tabs.Screen name="connect" options={{ href: null, title: "Connect Wallet" }} />
-      {/* Detail screens — hidden from tab bar */}
-      <Tabs.Screen name="post/[id]" options={{ href: null, headerShown: true, title: "Post" }} />
-      <Tabs.Screen
-        name="mini-app/[id]"
-        options={{ href: null, headerShown: true, title: "Mini App" }}
-      />
-      <Tabs.Screen
-        name="mini-app/create-post"
-        options={{ href: null, headerShown: true, title: "Create Post" }}
-      />
-      <Tabs.Screen
-        name="profile/[address]"
-        options={{ href: null, headerShown: true, title: "Profile" }}
-      />
-      <Tabs.Screen name="pool/[id]" options={{ href: null, headerShown: true, title: "Pool" }} />
-      <Tabs.Screen name="pools/[id]" options={{ href: null, headerShown: true, title: "Pool" }} />
-      <Tabs.Screen
-        name="dm/[address]"
-        options={{ href: null, headerShown: true, title: "Direct Message" }}
-      />
-    </Tabs>
+    <>
+      {isOffline && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineBannerText}>No internet connection</Text>
+        </View>
+      )}
+      <Tabs
+        screenOptions={{
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: "#0f172a",
+          },
+          headerTitleStyle: {
+            color: "#f8fafc",
+            fontWeight: "700",
+          },
+          headerTintColor: "#f8fafc",
+          headerRight: () => <HeaderActions />,
+          tabBarActiveTintColor: "#6366f1",
+          tabBarInactiveTintColor: "#9ca3af",
+          tabBarStyle: {
+            backgroundColor: "#0f172a",
+            borderTopColor: "#1e293b",
+          },
+        }}
+      >
+        <Tabs.Screen name="(tabs)/feed" options={{ title: "Feed", tabBarLabel: "Feed" }} />
+        <Tabs.Screen name="(tabs)/explore" options={{ title: "Explore", tabBarLabel: "Explore" }} />
+        <Tabs.Screen name="(tabs)/pools" options={{ title: "Pools", tabBarLabel: "Pools" }} />
+        <Tabs.Screen
+          name="(tabs)/mini-apps"
+          options={{ title: "Mini Apps", tabBarLabel: "Mini Apps" }}
+        />
+        <Tabs.Screen name="(tabs)/profile" options={{ title: "Profile", tabBarLabel: "Profile" }} />
+        <Tabs.Screen name="connect" options={{ href: null, title: "Connect Wallet" }} />
+        {/* Detail screens — hidden from tab bar */}
+        <Tabs.Screen name="post/[id]" options={{ href: null, headerShown: true, title: "Post" }} />
+        <Tabs.Screen
+          name="mini-app/[id]"
+          options={{ href: null, headerShown: true, title: "Mini App" }}
+        />
+        <Tabs.Screen
+          name="mini-app/create-post"
+          options={{ href: null, headerShown: true, title: "Create Post" }}
+        />
+        <Tabs.Screen
+          name="profile/[address]"
+          options={{ href: null, headerShown: true, title: "Profile" }}
+        />
+        <Tabs.Screen name="pool/[id]" options={{ href: null, headerShown: true, title: "Pool" }} />
+        <Tabs.Screen name="pools/[id]" options={{ href: null, headerShown: true, title: "Pool" }} />
+        <Tabs.Screen
+          name="dm/[address]"
+          options={{ href: null, headerShown: true, title: "Direct Message" }}
+        />
+      </Tabs>
+    </>
   );
 }
 
@@ -243,5 +251,18 @@ const styles = StyleSheet.create({
   },
   networkBadgeTextMainnet: {
     color: "#fecaca",
+  },
+  offlineBanner: {
+    backgroundColor: "#ef4444",
+    paddingTop: 48,
+    paddingBottom: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 9999,
+  },
+  offlineBannerText: {
+    color: "#ffffff",
+    fontWeight: "bold",
+    fontSize: 14,
   },
 });
