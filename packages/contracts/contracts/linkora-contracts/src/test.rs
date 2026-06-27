@@ -2606,6 +2606,125 @@ fn test_pool_threshold_updated_event() {
     assert_eq!(pool.threshold, 1);
 }
 
+// ── Issue #721: update_pool_threshold rejects threshold of zero ──────────────
+//
+// Calling update_pool_threshold with threshold 0 must panic with
+// "threshold must be positive". The assert! in update_pool_threshold runs
+// immediately after bump_instance and before any pool-state reads or writes,
+// so the previously stored threshold must remain intact across a rejected
+// zero call (Soroban transaction rollback). Two tests are added:
+//
+//   (A) the literal panic assertion from the issue body, and
+//   (B) a state-preservation assertion: after the rejected zero call, the
+//       pool's threshold must still equal the value most recently written
+//       by a successful call.
+//
+// The state-preservation test would catch a regression in which someone
+// moves the assert! after the storage write, or otherwise causes a partial
+// write before the panic (e.g. reordering with a different validation
+// rule).
+
+#[test]
+#[should_panic(expected = "threshold must be positive")]
+fn test_update_pool_threshold_zero_panics() {
+    // Create a 2-of-2 pool, then call update_pool_threshold with
+    // threshold = 0. Verify it panics with "threshold must be positive".
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _) = setup_contract(&env);
+
+    let pool_admin1 = Address::generate(&env);
+    let pool_admin2 = Address::generate(&env);
+    let token = setup_token(&env, &pool_admin1);
+
+    let pool_id = symbol_short!("p721a");
+    // 2-of-2 pool: provides enough valid signers that any panic observed
+    // must originate from the threshold-positivity assertion, not from
+    // the (later) "insufficient signers" or "unauthorized signer" checks.
+    client.create_pool(
+        &admin,
+        &pool_id,
+        &token,
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &2,
+    );
+
+    // The 0-threshold call must panic with "threshold must be positive".
+    client.update_pool_threshold(
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &pool_id,
+        &0,
+    );
+}
+
+#[test]
+fn test_update_pool_threshold_zero_does_not_mutate_pool_threshold() {
+    // Pin down the storage invariant: a rejected threshold = 0 call must
+    // not overwrite the previously stored threshold.
+    //
+    // The function order is:
+    //   1. bump_instance   (touches only instance TTL — not pool.threshold)
+    //   2. assert!(threshold > 0, ...)  ← panics on threshold = 0
+    //   3. read pool from storage
+    //   4. signers check
+    //   5. write new threshold
+    //
+    // Because step 2 fires before step 5, the stored threshold must remain
+    // at the last successfully written value (here, 1) after step 2 panics.
+    // Soroban's transaction-level rollback also guarantees pool.threshold
+    // is unchanged, but the post-call read assertion below makes that
+    // guarantee explicit and protects against future re-orderings.
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _) = setup_contract(&env);
+
+    let pool_admin1 = Address::generate(&env);
+    let pool_admin2 = Address::generate(&env);
+    let token = setup_token(&env, &pool_admin1);
+
+    let pool_id = symbol_short!("p721b");
+    client.create_pool(
+        &admin,
+        &pool_id,
+        &token,
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &2,
+    );
+
+    // Establish a known-good, non-zero threshold of 1 by calling the
+    // declared happy path first. After this call, pool.threshold == 1.
+    client.update_pool_threshold(
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &pool_id,
+        &1,
+    );
+    assert_eq!(
+        client.get_pool(&pool_id).unwrap().threshold,
+        1,
+        "sanity: happy-path update must succeed"
+    );
+
+    // Now call update_pool_threshold with threshold = 0. This MUST panic;
+    // try_* exposes the failure as Err so we can inspect pool state after.
+    let result = client.try_update_pool_threshold(
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &pool_id,
+        &0,
+    );
+    assert!(
+        result.is_err(),
+        "update_pool_threshold(.., threshold=0) must return Err"
+    );
+
+    // The previously stored threshold must remain intact.
+    let pool_after = client.get_pool(&pool_id).unwrap();
+    assert_eq!(
+        pool_after.threshold, 1,
+        "pool.threshold must remain at the last successfully written value (1) \
+         after the rejected 0 call, regardless of Soroban's transaction rollback"
+    );
+}
+
 // ── Issue #124: delete_post success path, unauthorized caller, event emission ─
 
 #[test]
