@@ -2371,6 +2371,23 @@ fn test_delete_post_non_author_panics() {
 }
 
 #[test]
+#[should_panic(expected = "only author can delete post")]
+fn test_delete_post_only_author() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let user_a = Address::generate(&env);
+    let user_b = Address::generate(&env);
+    let token = Address::generate(&env);
+    client.set_profile(&user_a, &String::from_str(&env, "user_a"), &token);
+    client.set_profile(&user_b, &String::from_str(&env, "user_b"), &token);
+
+    let post_id = client.create_post(&user_a, &String::from_str(&env, "Hello from A"));
+    client.delete_post(&user_b, &post_id);
+}
+
+#[test]
 fn test_delete_post_emits_post_deleted_event() {
     let env = Env::default();
     env.mock_all_auths();
