@@ -15,15 +15,15 @@ export default function SettingsPage() {
 
   if (!connected || !address) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
+      <div className="container mx-auto px-4 py-6 md:py-8 max-w-3xl">
         <p className="text-gray-600">Connect your wallet to access settings.</p>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="text-3xl font-bold mb-8">Settings</h1>
+    <div className="container mx-auto px-4 py-6 md:py-8 max-w-3xl">
+      <h1 className="text-2xl md:text-3xl font-bold mb-6 md:mb-8">Settings</h1>
 
       <div className="space-y-8">
         {/* Appearance Section */}
