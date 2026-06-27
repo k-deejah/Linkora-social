@@ -7,12 +7,14 @@ import {
   TransactionBuilder,
   Account,
   Keypair,
+  StrKey,
   xdr,
 } from "@stellar/stellar-sdk";
 import { GeneratedLinkoraClient } from "./generated/client";
 import { Profile, Post, Pool, SimulationResult, LedgerFootprint } from "./types";
-import { mapError, NotFoundError, SimulationError } from "./errors";
-import type { GovParameter, GovProposal } from "./generated/types";
+import { mapError, NotFoundError, SimulationError, InvalidInputError } from "./errors";
+import { GovParameter } from "./generated/types";
+import type { GovProposal } from "./generated/types";
 
 const { isSimulationError, isSimulationSuccess } = rpc.Api;
 
@@ -30,6 +32,58 @@ function scvU32(value: number): xdr.ScVal {
 }
 function scvI128(value: number | bigint): xdr.ScVal {
   return nativeToScVal(value, { type: "i128" });
+}
+
+function ensureNonEmptyString(value: string, fieldName: string): void {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new InvalidInputError(`${fieldName} must be a non-empty string.`);
+  }
+}
+
+function ensureAddress(value: string, fieldName: string): void {
+  ensureNonEmptyString(value, fieldName);
+  if (!StrKey.isValidEd25519PublicKey(value)) {
+    throw new InvalidInputError(`${fieldName} must be a valid Stellar public key.`);
+  }
+}
+
+function ensureAddressList(values: string[], fieldName: string): void {
+  if (!Array.isArray(values)) {
+    throw new InvalidInputError(`${fieldName} must be an array of Stellar public keys.`);
+  }
+  values.forEach((value, index) => ensureAddress(value, `${fieldName}[${index}]`));
+}
+
+function ensureInteger(value: number | bigint, fieldName: string, min = 0): bigint {
+  if (typeof value === "bigint") {
+    if (value < BigInt(min)) {
+      throw new InvalidInputError(`${fieldName} must be greater than or equal to ${min}.`);
+    }
+    return value;
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value) || !Number.isInteger(value)) {
+    throw new InvalidInputError(`${fieldName} must be an integer.`);
+  }
+
+  if (value < min) {
+    throw new InvalidInputError(`${fieldName} must be greater than or equal to ${min}.`);
+  }
+
+  return BigInt(value);
+}
+
+function ensurePositiveInteger(value: number | bigint, fieldName: string): bigint {
+  return ensureInteger(value, fieldName, 1);
+}
+
+function ensureGovParameter(parameter: GovParameter): void {
+  const valid = Object.values(GovParameter).includes(parameter);
+  if (!valid) {
+    throw new InvalidInputError(
+      `parameter must be one of: ${Object.values(GovParameter).join(", ")}.`
+    );
+  }
 }
 
 export interface ClientConfig {
@@ -342,7 +396,7 @@ export class LinkoraClient extends GeneratedLinkoraClient {
   async prepareDmKeyTx(
     userAddress: string,
     x25519PubKey: Uint8Array,
-    horizonUrl?: string,
+    horizonUrl?: string
   ): Promise<string> {
     if (x25519PubKey.length !== 32) {
       throw new Error("X25519 public key must be exactly 32 bytes");
@@ -358,7 +412,7 @@ export class LinkoraClient extends GeneratedLinkoraClient {
     if (!res.ok) {
       throw new Error(
         `Could not fetch account from Horizon (HTTP ${res.status}). ` +
-          `Make sure the wallet is funded on the correct network.`,
+          `Make sure the wallet is funded on the correct network.`
       );
     }
     const data = (await res.json()) as { sequence: string };
@@ -368,7 +422,7 @@ export class LinkoraClient extends GeneratedLinkoraClient {
       "publish_dm_key",
       sourceAccount,
       nativeToScVal(userAddress, { type: "address" }),
-      nativeToScVal(Array.from(x25519PubKey), { type: "bytes" }),
+      nativeToScVal(Array.from(x25519PubKey), { type: "bytes" })
     );
 
     return tx.toEnvelope().toXDR("base64");
@@ -382,44 +436,127 @@ export class LinkoraClient extends GeneratedLinkoraClient {
     newValue: number | bigint,
     newAddress: string | null
   ): string {
+    ensureAddress(proposer, "proposer");
+    ensureGovParameter(parameter);
+    ensureInteger(newValue, "newValue");
+    if (newAddress !== null) {
+      ensureAddress(newAddress, "newAddress");
+    }
     return super.govPropose(proposer, parameter, BigInt(newValue), newAddress);
   }
 
   govVote(voter: string, proposalId: number | bigint, support: boolean): string {
+    ensureAddress(voter, "voter");
+    ensurePositiveInteger(proposalId, "proposalId");
     return super.govVote(voter, BigInt(proposalId), support);
   }
 
   govExecute(proposalId: number | bigint): string {
+    ensurePositiveInteger(proposalId, "proposalId");
     return super.govExecute(BigInt(proposalId));
   }
 
   govGetProposal(proposalId: number | bigint): Promise<GovProposal> {
+    ensurePositiveInteger(proposalId, "proposalId");
     return super.govGetProposal(BigInt(proposalId));
   }
 
   effectiveQuorum(proposalId: number | bigint): Promise<number> {
+    ensurePositiveInteger(proposalId, "proposalId");
     return super.effectiveQuorum(BigInt(proposalId));
   }
 
   govVeto(signers: string[], poolId: string, proposalId: number | bigint): string {
+    ensureAddressList(signers, "signers");
+    ensureNonEmptyString(poolId, "poolId");
+    ensurePositiveInteger(proposalId, "proposalId");
     return super.govVeto(signers, poolId, BigInt(proposalId));
   }
 
   // ── Override write methods with number→bigint conversions ─────────────────
 
+  setProfile(user: string, username: string, creatorToken: string): string {
+    ensureAddress(user, "user");
+    ensureNonEmptyString(username, "username");
+    ensureAddress(creatorToken, "creatorToken");
+    return super.setProfile(user, username, creatorToken);
+  }
+
+  deleteProfile(user: string): string {
+    ensureAddress(user, "user");
+    return super.deleteProfile(user);
+  }
+
+  createPost(author: string, content: string): string {
+    ensureAddress(author, "author");
+    ensureNonEmptyString(content, "content");
+    return super.createPost(author, content);
+  }
+
   deletePost(author: string, postId: number | bigint): string {
+    ensureAddress(author, "author");
+    ensurePositiveInteger(postId, "postId");
     return super.deletePost(author, BigInt(postId));
   }
 
+  follow(follower: string, followee: string): string {
+    ensureAddress(follower, "follower");
+    ensureAddress(followee, "followee");
+    return super.follow(follower, followee);
+  }
+
+  unfollow(follower: string, followee: string): string {
+    ensureAddress(follower, "follower");
+    ensureAddress(followee, "followee");
+    return super.unfollow(follower, followee);
+  }
+
+  blockUser(blocker: string, blocked: string): string {
+    ensureAddress(blocker, "blocker");
+    ensureAddress(blocked, "blocked");
+    return super.blockUser(blocker, blocked);
+  }
+
+  unblockUser(blocker: string, blocked: string): string {
+    ensureAddress(blocker, "blocker");
+    ensureAddress(blocked, "blocked");
+    return super.unblockUser(blocker, blocked);
+  }
+
   likePost(user: string, postId: number | bigint): string {
+    ensureAddress(user, "user");
+    ensurePositiveInteger(postId, "postId");
     return super.likePost(user, BigInt(postId));
   }
 
   tip(tipper: string, postId: number | bigint, token: string, amount: number | bigint): string {
+    ensureAddress(tipper, "tipper");
+    ensurePositiveInteger(postId, "postId");
+    ensureAddress(token, "token");
+    ensurePositiveInteger(amount, "amount");
     return super.tip(tipper, BigInt(postId), token, BigInt(amount));
   }
 
+  createPool(
+    admin: string,
+    poolId: string,
+    token: string,
+    initialAdmins: string[],
+    threshold: number | bigint
+  ): string {
+    ensureAddress(admin, "admin");
+    ensureNonEmptyString(poolId, "poolId");
+    ensureAddress(token, "token");
+    ensureAddressList(initialAdmins, "initialAdmins");
+    ensureInteger(threshold, "threshold", 1);
+    return super.createPool(admin, poolId, token, initialAdmins, Number(threshold));
+  }
+
   poolDeposit(depositor: string, poolId: string, token: string, amount: number | bigint): string {
+    ensureAddress(depositor, "depositor");
+    ensureNonEmptyString(poolId, "poolId");
+    ensureAddress(token, "token");
+    ensurePositiveInteger(amount, "amount");
     return super.poolDeposit(depositor, poolId, token, BigInt(amount));
   }
 
@@ -429,10 +566,48 @@ export class LinkoraClient extends GeneratedLinkoraClient {
     amount: number | bigint,
     recipient: string
   ): string {
+    ensureAddressList(signers, "signers");
+    ensureNonEmptyString(poolId, "poolId");
+    ensurePositiveInteger(amount, "amount");
+    ensureAddress(recipient, "recipient");
     return super.poolWithdraw(signers, poolId, BigInt(amount), recipient);
   }
 
-  // ── Analytics Oracle ────────────────────────────────────────────────────────
+  addPoolAdmin(signers: string[], poolId: string, newAdmin: string): string {
+    ensureAddressList(signers, "signers");
+    ensureNonEmptyString(poolId, "poolId");
+    ensureAddress(newAdmin, "newAdmin");
+    return super.addPoolAdmin(signers, poolId, newAdmin);
+  }
+
+  removePoolAdmin(signers: string[], poolId: string, admin: string): string {
+    ensureAddressList(signers, "signers");
+    ensureNonEmptyString(poolId, "poolId");
+    ensureAddress(admin, "admin");
+    return super.removePoolAdmin(signers, poolId, admin);
+  }
+
+  updatePoolThreshold(signers: string[], poolId: string, threshold: number | bigint): string {
+    ensureAddressList(signers, "signers");
+    ensureNonEmptyString(poolId, "poolId");
+    ensureInteger(threshold, "threshold", 1);
+    return super.updatePoolThreshold(signers, poolId, Number(threshold));
+  }
+
+  setFee(feeBps: number | bigint): string {
+    ensureInteger(feeBps, "feeBps", 0);
+    return super.setFee(Number(feeBps));
+  }
+
+  setTreasury(treasury: string): string {
+    ensureAddress(treasury, "treasury");
+    return super.setTreasury(treasury);
+  }
+
+  setTipCooldownWindow(cooldownLedgers: number | bigint): string {
+    ensureInteger(cooldownLedgers, "cooldownLedgers", 0);
+    return super.setTipCooldownWindow(Number(cooldownLedgers));
+  }
 
   /**
    * Build a transaction envelope for `verify_analytics_attestation`.
@@ -445,6 +620,10 @@ export class LinkoraClient extends GeneratedLinkoraClient {
     windowStart: number,
     windowEnd: number
   ): string {
+    ensureNonEmptyString(oracleName, "oracleName");
+    ensureAddress(creator, "creator");
+    ensureInteger(windowStart, "windowStart", 0);
+    ensureInteger(windowEnd, "windowEnd", 0);
     return this.buildTxForContract(
       this._contractId,
       "verify_analytics_attestation",
