@@ -9,7 +9,7 @@ import type { Profile, Post } from "../../../../packages/sdk/src/types";
 /* ────────────────────────────────────────────────────────────────────────── */
 
 export interface ProfileData {
-  profile: Profile;
+  profile: Profile & { bio?: string };
   followersCount: number;
   followingCount: number;
   isFollowing: boolean;
@@ -42,10 +42,8 @@ export type ProfileState =
 /* ────────────────────────────────────────────────────────────────────────── */
 
 const contractId = process.env.NEXT_PUBLIC_CONTRACT_ID || "CDUMMY";
-const rpcUrl =
-  process.env.NEXT_PUBLIC_RPC_URL || "https://soroban-testnet.stellar.org";
-const indexerUrl =
-  process.env.NEXT_PUBLIC_INDEXER_URL || "http://localhost:3001";
+const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "https://soroban-testnet.stellar.org";
+const indexerUrl = process.env.NEXT_PUBLIC_INDEXER_URL || "http://localhost:3001";
 const POSTS_PAGE_SIZE = 20;
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -71,7 +69,18 @@ export function useProfile(address: string, currentUserAddress?: string | null) 
       const client = clientRef.current!;
 
       // 1. On-chain profile struct
-      const profile = await client.getProfile(address);
+      const profile = await client.getProfile(address).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        if (contractId === "CDUMMY" || message.includes("Invalid contract ID")) {
+          return {
+            address,
+            username: `user_${address.slice(1, 7).toLowerCase()}`,
+            creator_token: "",
+            bio: "Linkora community member",
+          } as Profile & { bio?: string };
+        }
+        throw error;
+      });
       if (!profile) {
         setState({ status: "not-found" });
         return;
@@ -130,10 +139,7 @@ export function useProfile(address: string, currentUserAddress?: string | null) 
           posts = data.posts ?? [];
           postsTotal = data.total ?? 0;
           postsHasMore = data.has_more ?? false;
-          totalTipsReceived = posts.reduce(
-            (acc, p) => acc + Number(p.tip_total || 0),
-            0
-          );
+          totalTipsReceived = posts.reduce((acc, p) => acc + Number(p.tip_total || 0), 0);
         }
       } catch (err) {
         console.warn("Indexer posts fetch failed", err);

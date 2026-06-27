@@ -1,11 +1,12 @@
 #![cfg(test)]
+extern crate alloc;
 
 use super::*;
 use soroban_sdk::{
     symbol_short,
-    testutils::{storage::Persistent as _, Address as _, Events, Ledger},
+    testutils::{Address as _, Events, Ledger},
     token::{Client as TokenClient, StellarAssetClient},
-    vec, Address, BytesN, Env, String,
+    vec, Address, Bytes, BytesN, Env, String,
 };
 
 fn setup_token(env: &Env, admin: &Address) -> Address {
@@ -69,6 +70,23 @@ fn test_username_reverse_index_update() {
     assert_eq!(
         client.get_address_by_username(&String::from_str(&env, "alice2")),
         Some(user)
+    );
+}
+
+// ── Issue #714: get_address_by_username returns None for unregistered username ─
+
+#[test]
+fn test_get_address_by_username_returns_none_for_unregistered() {
+    // Call get_address_by_username('unknown') on a fresh contract.
+    // Verify it returns None without panicking.
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let result = client.get_address_by_username(&String::from_str(&env, "unknown"));
+    assert_eq!(
+        result, None,
+        "get_address_by_username must return None for a username that was never registered"
     );
 }
 
@@ -291,6 +309,67 @@ fn test_get_posts_by_author_limit_exceeds_maximum() {
     client.create_post(&author, &String::from_str(&env, "post 1"));
 
     client.get_posts_by_author(&author, &0, &51);
+}
+
+#[test]
+fn test_get_posts_by_author_offset_beyond_list_length_returns_empty() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let author = Address::generate(&env);
+
+    for i in 0..5 {
+        client.create_post(&author, &String::from_str(&env, &alloc::format!("post {i}")));
+    }
+
+    // Offset is past the end of the 5-item list.
+    let page = client.get_posts_by_author(&author, &5, &10);
+    assert_eq!(page.len(), 0);
+
+    let page_far = client.get_posts_by_author(&author, &100, &10);
+    assert_eq!(page_far.len(), 0);
+}
+
+#[test]
+fn test_get_posts_by_author_offset_plus_limit_beyond_end_returns_remaining() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let author = Address::generate(&env);
+
+    let mut ids = Vec::new(&env);
+    for i in 0..10 {
+        ids.push_back(client.create_post(&author, &String::from_str(&env, &alloc::format!("post {i}"))));
+    }
+
+    // offset (8) + limit (10) = 18, which is beyond the 10-item list,
+    // so only the 2 remaining items should be returned.
+    let page = client.get_posts_by_author(&author, &8, &10);
+    assert_eq!(page.len(), 2);
+    assert_eq!(page.get(0).unwrap(), ids.get(8).unwrap());
+    assert_eq!(page.get(1).unwrap(), ids.get(9).unwrap());
+}
+
+#[test]
+fn test_get_posts_by_author_limit_50_max_allowed_returns_all() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let author = Address::generate(&env);
+
+    for i in 0..50 {
+        client.create_post(&author, &String::from_str(&env, &alloc::format!("post {i}")));
+    }
+
+    // limit = 50 is the maximum allowed value and must not panic.
+    let page = client.get_posts_by_author(&author, &0, &50);
+    assert_eq!(page.len(), 50);
 }
 
 #[test]
@@ -558,6 +637,29 @@ fn test_blocked_follow_panics() {
 }
 
 #[test]
+fn test_blocked_user_cannot_follow_blocker_no_relationship_created() {
+    // After block_user(A, B), follow(B, A) must panic with "blocked" and
+    // must not create a follow relationship between B and A.
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let a = Address::generate(&env);
+    let b = Address::generate(&env);
+
+    // A blocks B
+    client.block_user(&a, &b);
+
+    // B tries to follow A — must panic with "blocked"
+    let result = client.try_follow(&b, &a);
+    assert!(result.is_err());
+
+    // No follow relationship was created in either direction
+    assert_eq!(client.get_following(&b, &0, &50).len(), 0);
+    assert_eq!(client.get_followers(&a, &0, &50).len(), 0);
+}
+
+#[test]
 fn test_like_post() {
     let env = Env::default();
     env.mock_all_auths();
@@ -626,6 +728,26 @@ fn test_like_post_no_event_on_duplicate() {
     );
 }
 
+// ── Issue #712: get_like_count returns 0 for post with no likes ───────────────
+
+#[test]
+fn test_get_like_count_returns_zero_for_post_with_no_likes() {
+    // Create a post and immediately call get_like_count.
+    // Verify it returns 0 without error.
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let author = Address::generate(&env);
+    let post_id = client.create_post(&author, &String::from_str(&env, "No likes yet"));
+
+    assert_eq!(
+        client.get_like_count(&post_id),
+        0,
+        "get_like_count must return 0 for a newly created post with no likes"
+    );
+}
+
 #[test]
 fn test_pool_authorization() {
     let env = Env::default();
@@ -687,6 +809,35 @@ fn test_create_pool_emits_event() {
     assert!(
         !env.events().all().events().is_empty(),
         "PoolCreatedEvent should be emitted"
+    );
+}
+
+#[test]
+#[should_panic(expected = "pool exists")]
+fn test_create_pool_duplicate_id_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _) = setup_contract(&env);
+
+    let pool_admin = Address::generate(&env);
+    let token = setup_token(&env, &pool_admin);
+
+    let pool_id = symbol_short!("test");
+    // First call should succeed
+    client.create_pool(
+        &admin,
+        &pool_id,
+        &token,
+        &vec![&env, pool_admin.clone()],
+        &1,
+    );
+    // Second call with same id should panic with "pool exists"
+    client.create_pool(
+        &admin,
+        &pool_id,
+        &token,
+        &vec![&env, pool_admin.clone()],
+        &1,
     );
 }
 
@@ -923,6 +1074,31 @@ fn test_initialize_twice_panics() {
     client.initialize(&admin, &treasury, &0);
     // Second call must panic
     client.initialize(&admin, &treasury, &0);
+}
+
+// A rejected re-initialize must leave the original configuration intact (#690).
+// `try_initialize` captures the failure without aborting the test so we can then
+// assert the stored treasury/fee were not overwritten by the second call.
+#[test]
+fn test_initialize_twice_preserves_state() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+    client.initialize(&admin, &treasury, &250);
+
+    // Attempt to re-initialize with different admin/treasury/fee — must fail.
+    let other_admin = Address::generate(&env);
+    let other_treasury = Address::generate(&env);
+    let result = client.try_initialize(&other_admin, &other_treasury, &999);
+    assert!(result.is_err());
+
+    // Original treasury and fee remain unchanged.
+    assert_eq!(client.get_treasury(), Some(treasury));
+    assert_eq!(client.get_fee_bps(), 250);
 }
 
 #[test]
@@ -1210,6 +1386,45 @@ fn test_unfollow_noop_no_event() {
     // Verify both indexes are still empty
     assert_eq!(client.get_following(&alice, &0, &10).len(), 0);
     assert_eq!(client.get_followers(&bob, &0, &10).len(), 0);
+}
+
+#[test]
+fn test_unfollow_nonexistent_relationship_is_noop_emits_event_counts_stay_zero() {
+    // unfollow(A, B) when A does not follow B must not panic, must still emit
+    // an UnfollowEvent (current behaviour), and must leave both counts at 0.
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+
+    client.unfollow(&alice, &bob);
+
+    // UnfollowEvent is published even though there was no existing edge.
+    let all_events = env.events().all();
+    let events = all_events.events();
+    assert!(!events.is_empty());
+
+    // Counts remain at 0 on both sides.
+    assert_eq!(client.get_following(&alice, &0, &10).len(), 0);
+    assert_eq!(client.get_followers(&bob, &0, &10).len(), 0);
+
+    let contract_id = client.address.clone();
+    env.as_contract(&contract_id, || {
+        let following_count: u32 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::FollowingCount(alice.clone()))
+            .unwrap_or(0);
+        let followers_count: u32 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::FollowersCount(bob.clone()))
+            .unwrap_or(0);
+        assert_eq!(following_count, 0);
+        assert_eq!(followers_count, 0);
+    });
 }
 
 // ── Post content length validation tests (issue #194) ────────────────────────────
@@ -1760,6 +1975,30 @@ fn test_pool_withdraw_m_of_n_exceeds_balance_rejected() {
     client.pool_withdraw(&signers, &pool_id, &101, &recipient);
 }
 
+// ── Issue #713: pool_withdraw requires minimum threshold signers ──────────────
+
+#[test]
+#[should_panic(expected = "insufficient signers")]
+fn test_pool_withdraw_requires_minimum_threshold_signers() {
+    // Create a pool with 3 admins and threshold 2.
+    // Call pool_withdraw with only 1 signer.
+    // Verify it panics with 'insufficient signers'.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (client, _, pool_id, token, admins) = setup_pool(&env, 3, 2, 300);
+
+    let depositor = Address::generate(&env);
+    StellarAssetClient::new(&env, &token).mint(&depositor, &500);
+    client.pool_deposit(&depositor, &pool_id, &token, &100);
+
+    let recipient = Address::generate(&env);
+
+    // Only 1 signer provided, but threshold is 2 — must panic with "insufficient signers"
+    let signers = vec![&env, admins.get(0).unwrap()];
+    client.pool_withdraw(&signers, &pool_id, &50, &recipient);
+}
+
 // ── Issue #343: full tip flow integration tests ───────────────────────────────
 
 #[test]
@@ -2161,6 +2400,23 @@ fn test_delete_post_non_author_panics() {
 }
 
 #[test]
+#[should_panic(expected = "only author can delete post")]
+fn test_delete_post_only_author() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let user_a = Address::generate(&env);
+    let user_b = Address::generate(&env);
+    let token = Address::generate(&env);
+    client.set_profile(&user_a, &String::from_str(&env, "user_a"), &token);
+    client.set_profile(&user_b, &String::from_str(&env, "user_b"), &token);
+
+    let post_id = client.create_post(&user_a, &String::from_str(&env, "Hello from A"));
+    client.delete_post(&user_b, &post_id);
+}
+
+#[test]
 fn test_delete_post_emits_post_deleted_event() {
     let env = Env::default();
     env.mock_all_auths();
@@ -2331,6 +2587,62 @@ fn test_tip_cooldown_allows_after_window() {
 
     let post = client.get_post(&post_id).unwrap();
     assert_eq!(post.tip_total, 200, "tip_total must reflect both tips");
+}
+
+// ── Issue #715: set_tip_cooldown_window rejects zero ─────────────────────────
+
+#[test]
+#[should_panic(expected = "cooldown must be positive")]
+fn test_set_tip_cooldown_window_zero_panics() {
+    // Calling set_tip_cooldown_window(0) must panic with "cooldown must be positive".
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+    client.initialize(&admin, &treasury, &0);
+
+    // Set a valid window first so we can verify it is unchanged after the panic.
+    client.set_tip_cooldown_window(&5);
+
+    // Passing 0 must panic — the window must stay at 5.
+    client.set_tip_cooldown_window(&0);
+}
+
+#[test]
+fn test_set_tip_cooldown_window_valid_value_is_stored() {
+    // Verify that a valid non-zero value is stored and readable, confirming
+    // the original window is never mutated by a rejected zero call (which runs
+    // in a separate transaction and panics before any storage write occurs).
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+    client.initialize(&admin, &treasury, &0);
+
+    // Set a valid window and read it back.
+    client.set_tip_cooldown_window(&7);
+    assert_eq!(
+        client.get_tip_cooldown_window(),
+        7,
+        "window must equal the last successfully written value"
+    );
+
+    // Update to another valid value — confirms the setter works and the
+    // storage is never touched by a zero-value call (assert fires first).
+    client.set_tip_cooldown_window(&3);
+    assert_eq!(
+        client.get_tip_cooldown_window(),
+        3,
+        "window must reflect the updated valid value"
+    );
 }
 
 // ── Issue #321: profile_count decrement on profile deletion ───────────────────
@@ -2657,35 +2969,69 @@ fn test_gov_happy_path_propose_vote_execute() {
 }
 
 #[test]
-fn test_gov_quorum_decay_proposal_fails_below_floor() {
+fn test_gov_quorum_decay_effective_quorum_decreases_over_time() {
+    // Verify that effective_quorum decreases as ledgers elapse.
     let env = Env::default();
     env.mock_all_auths();
+    // quorum=60, time_lock=50, vote_window=100, decay_rate=500 bps (5%/ledger), floor=10
+    let (client, _admin, _) = setup_contract(&env);
+    client.gov_init_config(&60, &50, &100, &500, &10);
+
+    let proposer = Address::generate(&env);
+    let proposal_id = client.gov_propose(&proposer, &GovParameter::FeeBps, &100, &None);
+
+    // At creation time quorum equals the configured value.
+    let q0 = client.effective_quorum(&proposal_id);
+    assert_eq!(q0, 60, "quorum at creation must equal configured value");
+
+    // Advance 100 ledgers: decay = 100 * 500 / 10000 = 5 → effective = max(10, 60-5) = 55
+    env.ledger().with_mut(|li| {
+        li.sequence_number += 100;
+    });
+    let q100 = client.effective_quorum(&proposal_id);
+    assert_eq!(q100, 55, "quorum should decay to 55 after 100 ledgers");
+    assert!(q100 < q0, "quorum must decrease with elapsed ledgers");
+
+    // Advance another 900 ledgers (total 1000): decay = 1000*500/10000 = 50 → max(10, 60-50)=10
+    env.ledger().with_mut(|li| {
+        li.sequence_number += 900;
+    });
+    let q1000 = client.effective_quorum(&proposal_id);
+    assert_eq!(q1000, 10, "quorum should decay to floor (10) after 1000 ledgers");
+    assert!(q1000 < q100, "quorum must continue decreasing");
+}
+
+#[test]
+#[should_panic(expected = "quorum not met")]
+fn test_gov_quorum_decay_proposal_fails_below_floor() {
+    // Even with maximum quorum decay (floor=30), a proposal with 20% approval fails.
+    let env = Env::default();
+    env.mock_all_auths();
+    // setup_governance uses: quorum=60, time_lock=100, vote_window=200, decay=50, floor=30
     let (client, _admin, _) = setup_governance(&env);
 
     let proposer = Address::generate(&env);
     let proposal_id = client.gov_propose(&proposer, &GovParameter::FeeBps, &100, &None);
 
-    // 2 for, 3 against = 40% approval
+    // 1 for, 4 against = 20% approval — below the 30% floor
     let v1 = Address::generate(&env);
     let v2 = Address::generate(&env);
     let v3 = Address::generate(&env);
     let v4 = Address::generate(&env);
     let v5 = Address::generate(&env);
     client.gov_vote(&v1, &proposal_id, &true);
-    client.gov_vote(&v2, &proposal_id, &true);
+    client.gov_vote(&v2, &proposal_id, &false);
     client.gov_vote(&v3, &proposal_id, &false);
     client.gov_vote(&v4, &proposal_id, &false);
     client.gov_vote(&v5, &proposal_id, &false);
 
+    // Advance far enough for maximum decay — floor stays at 30
     env.ledger().with_mut(|li| {
-        li.sequence_number += 200 + 100;
+        li.sequence_number += 10_000; // well past vote_window + time_lock
     });
 
-    // effective_quorum: floor is 30, even with max decay it stays at 30
-    // approval_pct = 2/5 * 100 = 40 >= 30 → passes even with floor
-    // Actually 40 >= 30 so this will pass. Let's test actual failure instead.
-    // For failure: 1 for, 4 against = 20% < 30% floor
-    // Recreate scenario for actual failure
+    // effective_quorum decays to floor=30; 20% < 30% → must panic "quorum not met"
+    client.gov_execute(&proposal_id);
 }
 
 #[test]
@@ -2987,6 +3333,50 @@ fn test_migrate_follow_graph_rejects_oversized_batch() {
 }
 
 #[test]
+fn test_duplicate_follow_is_idempotent() {
+    // Calling follow(A, B) twice must not increment FollowersCount/FollowingCount
+    // beyond 1, and must not create a second index entry for the same edge.
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+
+    client.follow(&alice, &bob);
+    client.follow(&alice, &bob);
+
+    assert_eq!(client.get_following(&alice, &0, &50).len(), 1);
+    assert_eq!(client.get_followers(&bob, &0, &50).len(), 1);
+
+    let contract_id = client.address.clone();
+    env.as_contract(&contract_id, || {
+        let following_count: u32 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::FollowingCount(alice.clone()))
+            .unwrap_or(0);
+        let followers_count: u32 = env
+            .storage()
+            .persistent()
+            .get(&StorageKey::FollowersCount(bob.clone()))
+            .unwrap_or(0);
+        assert_eq!(following_count, 1);
+        assert_eq!(followers_count, 1);
+
+        // No second index entry should have been written for the duplicate follow.
+        assert!(!env
+            .storage()
+            .persistent()
+            .has(&StorageKey::FollowingIdx(alice.clone(), 1)));
+        assert!(!env
+            .storage()
+            .persistent()
+            .has(&StorageKey::FollowersIdx(bob.clone(), 1)));
+    });
+}
+
+#[test]
 fn test_follow_unfollow_refollow_consistency() {
     // Follow, unfollow, then re-follow should result in exactly 1 entry.
     let env = Env::default();
@@ -3237,4 +3627,429 @@ fn test_gov_veto_insufficient_pool_signers_panics() {
     // Only 1 signer when pool threshold is 2
     let single_signer = vec![&env, pool_admins.get(0).unwrap()];
     client.gov_veto(&single_signer, &pool_id, &proposal_id);
+}
+
+// ── delete_post removes ID from author index and get_post returns None ─────────
+
+#[test]
+fn test_delete_post_removed_from_author_index_and_get_post_none() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let author = Address::generate(&env);
+    let id1 = client.create_post(&author, &String::from_str(&env, "post 1"));
+    let id2 = client.create_post(&author, &String::from_str(&env, "post 2"));
+    let id3 = client.create_post(&author, &String::from_str(&env, "post 3"));
+
+    // Delete the middle post
+    client.delete_post(&author, &id2);
+
+    // get_posts_by_author must no longer include the deleted post ID
+    let page = client.get_posts_by_author(&author, &0, &10);
+    assert_eq!(page.len(), 2, "deleted post must be removed from author index");
+    assert!(
+        !page.iter().any(|id| id == id2),
+        "deleted post ID must not appear in get_posts_by_author"
+    );
+    assert!(page.iter().any(|id| id == id1));
+    assert!(page.iter().any(|id| id == id3));
+
+    // get_post must return None for the deleted post
+    assert!(
+        client.get_post(&id2).is_none(),
+        "get_post must return None for a deleted post"
+    );
+    // The surviving posts are still retrievable
+    assert!(client.get_post(&id1).is_some());
+    assert!(client.get_post(&id3).is_some());
+}
+
+// ── create_post content boundary: 280 succeeds, 281 panics ────────────────────
+
+#[test]
+fn test_create_post_280_chars_boundary_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let author = Address::generate(&env);
+    let content_str = "a".repeat(280);
+    let content = String::from_str(&env, &content_str);
+    assert_eq!(content.len(), 280);
+
+    // Exactly 280 characters must succeed
+    let post_id = client.create_post(&author, &content);
+    let post = client.get_post(&post_id).unwrap();
+    assert_eq!(post.content, content);
+    assert_eq!(post.content.len(), 280);
+}
+
+#[test]
+#[should_panic(expected = "content too long")]
+fn test_create_post_281_chars_boundary_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let author = Address::generate(&env);
+    let content_str = "a".repeat(281);
+    let content = String::from_str(&env, &content_str);
+    assert_eq!(content.len(), 281);
+
+    // 281 characters must panic with "content too long"
+    client.create_post(&author, &content);
+}
+
+// ── Tip cooldown of 100 ledgers: reject immediate re-tip, allow after window ───
+
+#[test]
+#[should_panic(expected = "tip cooldown not expired")]
+fn test_tip_cooldown_100_ledgers_immediate_retip_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+    let author = Address::generate(&env);
+    let tipper = Address::generate(&env);
+
+    client.initialize(&admin, &treasury, &0);
+    client.set_tip_cooldown_window(&100);
+
+    let token = setup_token(&env, &tipper);
+    let post_id = client.create_post(&author, &String::from_str(&env, "cooldown 100 post"));
+
+    // First tip succeeds
+    client.tip(&tipper, &post_id, &token, &100);
+    // Immediate second tip within the 100-ledger window must panic
+    client.tip(&tipper, &post_id, &token, &100);
+}
+
+#[test]
+fn test_tip_cooldown_100_ledgers_allows_after_advance() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+    let author = Address::generate(&env);
+    let tipper = Address::generate(&env);
+
+    client.initialize(&admin, &treasury, &0);
+    client.set_tip_cooldown_window(&100);
+
+    let token = setup_token(&env, &tipper);
+    let post_id = client.create_post(&author, &String::from_str(&env, "cooldown 100 post"));
+
+    // First tip succeeds
+    client.tip(&tipper, &post_id, &token, &100);
+
+    // Advance the ledger by exactly the 100-ledger cooldown window
+    env.ledger().with_mut(|li| {
+        li.sequence_number += 100;
+    });
+
+    // Tip succeeds again once the cooldown has elapsed
+    client.tip(&tipper, &post_id, &token, &100);
+
+    let post = client.get_post(&post_id).unwrap();
+    assert_eq!(
+        post.tip_total, 200,
+        "both tips must accumulate once the 100-ledger cooldown expires"
+    );
+}
+
+// ── pool_withdraw on a zero-balance pool panics with "low balance" ────────────
+
+#[test]
+#[should_panic(expected = "low balance")]
+fn test_pool_withdraw_zero_balance_panics_low_balance() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    // 1-of-1 pool with zero balance (no deposit performed)
+    let (client, _, pool_id, _token, admins) = setup_pool(&env, 1, 1, 0);
+    let recipient = Address::generate(&env);
+
+    assert_eq!(
+        client.get_pool(&pool_id).unwrap().balance,
+        0,
+        "pool must start with a zero balance"
+    );
+
+    // Withdrawing any positive amount from an empty pool must panic with "low balance"
+    let signers = vec![&env, admins.get(0).unwrap()];
+    client.pool_withdraw(&signers, &pool_id, &1, &recipient);
+}
+
+// ── Issue #678: add_pool_admin duplicate rejection ────────────────────────────
+
+#[test]
+#[should_panic(expected = "admin already exists")]
+fn test_add_pool_admin_duplicate_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _) = setup_contract(&env);
+
+    let pool_admin1 = Address::generate(&env);
+    let pool_admin2 = Address::generate(&env);
+    let token = setup_token(&env, &pool_admin1);
+
+    let pool_id = symbol_short!("pool1");
+    client.create_pool(
+        &admin,
+        &pool_id,
+        &token,
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &2,
+    );
+
+    let initial_pool = client.get_pool(&pool_id).unwrap();
+    let initial_admin_count = initial_pool.admins.len();
+    assert_eq!(initial_admin_count, 2);
+
+    client.add_pool_admin(
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &pool_id,
+        &pool_admin1,
+    );
+}
+
+#[test]
+fn test_add_pool_admin_duplicate_preserves_admin_list_length() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _) = setup_contract(&env);
+
+    let pool_admin1 = Address::generate(&env);
+    let pool_admin2 = Address::generate(&env);
+    let token = setup_token(&env, &pool_admin1);
+
+    let pool_id = symbol_short!("pool2");
+    client.create_pool(
+        &admin,
+        &pool_id,
+        &token,
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &2,
+    );
+
+    let before_pool = client.get_pool(&pool_id).unwrap();
+    let before_count = before_pool.admins.len();
+
+    let result = client.try_add_pool_admin(
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &pool_id,
+        &pool_admin1,
+    );
+    assert!(result.is_err());
+
+    let after_pool = client.get_pool(&pool_id).unwrap();
+    assert_eq!(after_pool.admins.len(), before_count);
+}
+
+// ── Issue #679: like_post idempotency - duplicate like is ignored ─────────────
+
+#[test]
+fn test_like_post_idempotency_duplicate_ignored() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let author = Address::generate(&env);
+    let user = Address::generate(&env);
+    let post_id = client.create_post(&author, &String::from_str(&env, "Idempotency test"));
+
+    client.like_post(&user, &post_id);
+    assert_eq!(client.get_like_count(&post_id), 1);
+    assert!(client.has_liked(&user, &post_id));
+
+    client.like_post(&user, &post_id);
+    assert_eq!(client.get_like_count(&post_id), 1);
+    assert!(client.has_liked(&user, &post_id));
+}
+
+#[test]
+fn test_like_post_second_call_is_no_op() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _, _) = setup_contract(&env);
+
+    let author = Address::generate(&env);
+    let user = Address::generate(&env);
+    let post_id = client.create_post(&author, &String::from_str(&env, "No-op test"));
+
+    client.like_post(&user, &post_id);
+    let like_count_after_first = client.get_like_count(&post_id);
+    let has_liked_after_first = client.has_liked(&user, &post_id);
+
+    client.like_post(&user, &post_id);
+    let like_count_after_second = client.get_like_count(&post_id);
+    let has_liked_after_second = client.has_liked(&user, &post_id);
+
+    assert_eq!(like_count_after_second, like_count_after_first);
+    assert_eq!(has_liked_after_second, has_liked_after_first);
+    assert_eq!(like_count_after_second, 1);
+}
+
+// ── Issue #680: remove_pool_admin threshold unreachable validation ────────────
+
+#[test]
+#[should_panic(expected = "threshold unreachable after removal")]
+fn test_remove_pool_admin_threshold_unreachable() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _) = setup_contract(&env);
+
+    let pool_admin1 = Address::generate(&env);
+    let pool_admin2 = Address::generate(&env);
+    let token = setup_token(&env, &pool_admin1);
+
+    let pool_id = symbol_short!("pool3");
+    client.create_pool(
+        &admin,
+        &pool_id,
+        &token,
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &2,
+    );
+
+    let pool = client.get_pool(&pool_id).unwrap();
+    assert_eq!(pool.admins.len(), 2);
+    assert_eq!(pool.threshold, 2);
+
+    client.remove_pool_admin(
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &pool_id,
+        &pool_admin1,
+    );
+}
+
+#[test]
+fn test_remove_pool_admin_threshold_valid_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, _) = setup_contract(&env);
+
+    let pool_admin1 = Address::generate(&env);
+    let pool_admin2 = Address::generate(&env);
+    let pool_admin3 = Address::generate(&env);
+    let token = setup_token(&env, &pool_admin1);
+
+    let pool_id = symbol_short!("pool4");
+    client.create_pool(
+        &admin,
+        &pool_id,
+        &token,
+        &vec![
+            &env,
+            pool_admin1.clone(),
+            pool_admin2.clone(),
+            pool_admin3.clone(),
+        ],
+        &2,
+    );
+
+    let before_pool = client.get_pool(&pool_id).unwrap();
+    assert_eq!(before_pool.admins.len(), 3);
+
+    client.remove_pool_admin(
+        &vec![&env, pool_admin1.clone(), pool_admin2.clone()],
+        &pool_id,
+        &pool_admin3,
+    );
+
+    let after_pool = client.get_pool(&pool_id).unwrap();
+    assert_eq!(after_pool.admins.len(), 2);
+    assert_eq!(after_pool.threshold, 2);
+    assert!(!after_pool.admins.iter().any(|a| a == pool_admin3));
+}
+
+// ── Issue #685: get_following/get_followers empty vec when offset beyond list ─
+
+#[test]
+fn test_get_following_offset_beyond_list_returns_empty() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let user_a = Address::generate(&env);
+    let user_b = Address::generate(&env);
+    let user_c = Address::generate(&env);
+    let user_d = Address::generate(&env);
+
+    client.follow(&user_a, &user_b);
+    client.follow(&user_a, &user_c);
+    client.follow(&user_a, &user_d);
+
+    let following = client.get_following(&user_a, &0, &10);
+    assert_eq!(following.len(), 3);
+
+    let empty_result = client.get_following(&user_a, &10, &10);
+    assert_eq!(empty_result.len(), 0);
+}
+
+#[test]
+fn test_get_followers_offset_beyond_list_returns_empty() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let user_a = Address::generate(&env);
+    let user_b = Address::generate(&env);
+    let user_c = Address::generate(&env);
+    let user_d = Address::generate(&env);
+
+    client.follow(&user_b, &user_a);
+    client.follow(&user_c, &user_a);
+    client.follow(&user_d, &user_a);
+
+    let followers = client.get_followers(&user_a, &0, &10);
+    assert_eq!(followers.len(), 3);
+
+    let empty_result = client.get_followers(&user_a, &10, &10);
+    assert_eq!(empty_result.len(), 0);
+}
+
+#[test]
+fn test_get_following_large_offset_no_panic() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let user_a = Address::generate(&env);
+    let user_b = Address::generate(&env);
+    let user_c = Address::generate(&env);
+
+    client.follow(&user_a, &user_b);
+    client.follow(&user_a, &user_c);
+
+    let result = client.get_following(&user_a, &100, &10);
+    assert_eq!(result.len(), 0);
+}
+
+#[test]
+fn test_get_followers_large_offset_no_panic() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(LinkoraContract, ());
+    let client = LinkoraContractClient::new(&env, &contract_id);
+
+    let user_a = Address::generate(&env);
+    let user_b = Address::generate(&env);
+
+    client.follow(&user_b, &user_a);
+
+    let result = client.get_followers(&user_a, &100, &10);
+    assert_eq!(result.len(), 0);
 }

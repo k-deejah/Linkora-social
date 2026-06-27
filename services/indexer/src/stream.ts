@@ -76,7 +76,10 @@ const defaultSleep = (ms: number): Promise<void> =>
 
 /** Error carrying the HTTP status of a failed RPC call (e.g. 429). */
 export class RpcError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
     super(message);
     this.name = "RpcError";
   }
@@ -184,10 +187,7 @@ async function fetchEventsResilient(
       attempt += 1;
       if (attempt > cfg.maxRetries) throw err;
 
-      const backoff = Math.min(
-        cfg.backoffMaxMs,
-        cfg.backoffBaseMs * 2 ** (attempt - 1)
-      );
+      const backoff = Math.min(cfg.backoffMaxMs, cfg.backoffBaseMs * 2 ** (attempt - 1));
       if (status === 429) {
         console.warn(
           `[stream] 429 rate-limited (attempt ${attempt}/${cfg.maxRetries}), backing off ${backoff}ms`
@@ -201,6 +201,86 @@ async function fetchEventsResilient(
       await deps.sleep(backoff);
     }
   }
+}
+
+/** State exposed on /health for monitoring startup backfill progress. */
+export interface BackfillState {
+  active: boolean;
+  fromLedger?: number;
+  toLedger?: number;
+  processedLedgers?: number;
+}
+
+let _backfillState: BackfillState = { active: false };
+
+export function getBackfillState(): BackfillState {
+  return _backfillState;
+}
+
+/**
+ * Explicitly backfill the gap between `fromLedger` and `toLedger` using the
+ * same resilient fetcher as mid-stream gap backfill. Called on startup when
+ * the processed cursor lags behind the RPC's current ledger.
+ */
+export async function backfillStartupGap(
+  config: Pick<StreamConfig, "rpcUrl" | "contractId" | "maxRetries" | "backoffBaseMs" | "backoffMaxMs">,
+  fromLedger: number,
+  toLedger: number,
+  processBatch: BatchProcessor,
+  signal: AbortSignal,
+  deps: StreamDeps = {}
+): Promise<void> {
+  const resolved = {
+    fetchImpl: deps.fetchImpl ?? fetch,
+    sleep: deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms))),
+    rateLimiter: deps.rateLimiter ?? new TokenBucket({ ratePerSec: DEFAULT_RATE_PER_SEC }),
+  };
+  const backoffCfg = {
+    maxRetries: config.maxRetries ?? DEFAULT_MAX_RETRIES,
+    backoffBaseMs: config.backoffBaseMs ?? DEFAULT_BACKOFF_BASE_MS,
+    backoffMaxMs: config.backoffMaxMs ?? DEFAULT_BACKOFF_MAX_MS,
+  };
+
+  const totalLedgers = toLedger - fromLedger + 1;
+  _backfillState = { active: true, fromLedger, toLedger, processedLedgers: 0 };
+  console.log(
+    JSON.stringify({
+      metric: "startup_backfill_begin",
+      contractId: config.contractId,
+      fromLedger,
+      toLedger,
+      totalLedgers,
+    })
+  );
+
+  const BATCH_SIZE = 100; // bounded batch of ledgers per fetchRange call
+  let current = fromLedger;
+  while (current <= toLedger && !signal.aborted) {
+    const batchTo = Math.min(current + BATCH_SIZE - 1, toLedger);
+    const events = await fetchRange(resolved, backoffCfg, config.rpcUrl, config.contractId, current, batchTo, signal);
+    if (events.length > 0) {
+      await processBatch(events);
+    }
+    const done = batchTo - fromLedger + 1;
+    _backfillState = { active: true, fromLedger, toLedger, processedLedgers: done };
+    console.log(
+      JSON.stringify({
+        metric: "startup_backfill_progress",
+        processedLedgers: done,
+        totalLedgers,
+      })
+    );
+    current = batchTo + 1;
+  }
+
+  _backfillState = { active: false, fromLedger, toLedger, processedLedgers: totalLedgers };
+  console.log(
+    JSON.stringify({
+      metric: "startup_backfill_complete",
+      fromLedger,
+      toLedger,
+    })
+  );
 }
 
 /**
@@ -259,6 +339,8 @@ function waitWithAbort(ms: number, signal: AbortSignal): Promise<void> {
     );
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Stream Soroban contract events, invoking `processBatch` for each batch.

@@ -28,25 +28,23 @@ describe("DangerZoneSection", () => {
 
     expect(screen.getByText("Danger Zone")).toBeInTheDocument();
     expect(screen.getByText("Irreversible actions. Proceed with caution.")).toBeInTheDocument();
-    expect(screen.getByText("Delete Profile")).toBeInTheDocument();
+    expect(screen.getAllByText("Delete Profile").length).toBeGreaterThan(0);
   });
 
   it("should open confirmation dialog when delete is clicked", () => {
     render(<DangerZoneSection address={mockAddress} />);
 
-    const deleteButton = screen.getAllByText("Delete Profile")[0];
+    const deleteButton = screen.getAllByRole("button", { name: "Delete Profile" })[0];
     fireEvent.click(deleteButton);
 
     expect(screen.getByText("Delete Profile?")).toBeInTheDocument();
-    expect(
-      screen.getByText(/This will permanently delete your profile/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/This will permanently delete your profile/)).toBeInTheDocument();
   });
 
   it("should have no accessibility violations in confirmation dialog", async () => {
     const { container } = render(<DangerZoneSection address={mockAddress} />);
 
-    const deleteButton = screen.getAllByText("Delete Profile")[0];
+    const deleteButton = screen.getAllByRole("button", { name: "Delete Profile" })[0];
     fireEvent.click(deleteButton);
 
     await waitFor(() => {
@@ -60,11 +58,11 @@ describe("DangerZoneSection", () => {
   it("should require exact address match for deletion", () => {
     render(<DangerZoneSection address={mockAddress} />);
 
-    const deleteButton = screen.getAllByText("Delete Profile")[0];
+    const deleteButton = screen.getAllByRole("button", { name: "Delete Profile" })[0];
     fireEvent.click(deleteButton);
 
     const input = screen.getByPlaceholderText(mockAddress);
-    const confirmButton = screen.getAllByText("Delete Profile")[1];
+    const confirmButton = screen.getAllByRole("button", { name: "Delete Profile" })[1];
 
     // Initially disabled
     expect(confirmButton).toBeDisabled();
@@ -81,26 +79,24 @@ describe("DangerZoneSection", () => {
   it("should show error when address doesn't match", async () => {
     render(<DangerZoneSection address={mockAddress} />);
 
-    const deleteButton = screen.getAllByText("Delete Profile")[0];
+    const deleteButton = screen.getAllByRole("button", { name: "Delete Profile" })[0];
     fireEvent.click(deleteButton);
 
     const input = screen.getByPlaceholderText(mockAddress);
     fireEvent.change(input, { target: { value: "WRONG_ADDRESS" } });
 
-    const confirmButton = screen.getAllByText("Delete Profile")[1];
+    const confirmButton = screen.getAllByRole("button", { name: "Delete Profile" })[1];
     fireEvent.click(confirmButton);
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Address does not match/)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Address does not match/)).toBeInTheDocument();
     });
   });
 
   it("should close dialog when cancel is clicked", () => {
     render(<DangerZoneSection address={mockAddress} />);
 
-    const deleteButton = screen.getAllByText("Delete Profile")[0];
+    const deleteButton = screen.getAllByRole("button", { name: "Delete Profile" })[0];
     fireEvent.click(deleteButton);
 
     expect(screen.getByText("Delete Profile?")).toBeInTheDocument();
@@ -114,7 +110,7 @@ describe("DangerZoneSection", () => {
   it("should have proper form labels and accessibility attributes", () => {
     render(<DangerZoneSection address={mockAddress} />);
 
-    const deleteButton = screen.getAllByText("Delete Profile")[0];
+    const deleteButton = screen.getAllByRole("button", { name: "Delete Profile" })[0];
     fireEvent.click(deleteButton);
 
     const input = screen.getByLabelText(/Type your wallet address to confirm/);

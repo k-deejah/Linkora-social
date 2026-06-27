@@ -7,7 +7,7 @@
  *      `ON CONFLICT (ledger_sequence, event_index) DO NOTHING`.
  *   2. Project each event into the domain tables (posts, follows, …) via the
  *      injected `domainProcessor`, which MUST use the same transaction client.
- *   3. Stamp `raw_events.processed_at` and advance `indexer_state.processed_cursor`.
+ *   3. Stamp `raw_events.processed_at` and advance `indexer_cursor.processed_cursor`.
  *   4. COMMIT.
  *
  * Because the raw ingest, the domain write, and the cursor bump all live in
@@ -53,10 +53,7 @@ export interface IngestEvent {
  * writes through the provided transaction client so they commit atomically
  * with the raw ingest and cursor advance. MUST be idempotent (safe to replay).
  */
-export type DomainProcessor = (
-  client: PgClientLike,
-  event: IngestEvent
-) => Promise<void>;
+export type DomainProcessor = (client: PgClientLike, event: IngestEvent) => Promise<void>;
 
 export interface IngestPipelineOptions {
   /** Stream identity for the cursor row (typically the contract id). */
@@ -94,10 +91,9 @@ export class IngestPipeline {
   async readCursor(): Promise<number> {
     const client = await this.pool.connect();
     try {
-      const res = await client.query(
-        "SELECT processed_cursor FROM indexer_state WHERE id = $1",
-        [this.streamId]
-      );
+      const res = await client.query("SELECT processed_cursor FROM indexer_cursor WHERE id = $1", [
+        this.streamId,
+      ]);
       const row = res.rows[0] as { processed_cursor?: number | string } | undefined;
       if (!row || row.processed_cursor === undefined) return 0;
       return Number(row.processed_cursor);
@@ -150,10 +146,10 @@ export class IngestPipeline {
 
       const newCursor = events.reduce((m, e) => Math.max(m, e.ledgerSequence), 0);
       await client.query(
-        `INSERT INTO indexer_state (id, processed_cursor)
+        `INSERT INTO indexer_cursor (id, processed_cursor)
          VALUES ($1, $2)
          ON CONFLICT (id) DO UPDATE
-           SET processed_cursor = GREATEST(indexer_state.processed_cursor, EXCLUDED.processed_cursor),
+           SET processed_cursor = GREATEST(indexer_cursor.processed_cursor, EXCLUDED.processed_cursor),
                updated_at = NOW()`,
         [this.streamId, newCursor]
       );

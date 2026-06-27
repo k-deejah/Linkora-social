@@ -1,4 +1,5 @@
 /**
+/**
  * Linkora Indexer — entry point.
  *
  * Connects to a Soroban RPC endpoint and streams Linkora contract events
@@ -21,10 +22,16 @@
 
 import http from "http";
 import { Pool } from "pg";
-import { streamEvents, RawEvent, BatchProcessor } from "./stream";
+import { streamEvents, backfillStartupGap, RawEvent, BatchProcessor } from "./stream";
 import { IngestPipeline, IngestEvent } from "./pipeline";
 import { bus } from "./bus";
 import { attachWebSocketServer } from "./ws";
+import { startGossip } from "./gossip";
+import { attachNotificationDispatcher } from "./notifications/events";
+import { NotificationService, PostgresDeviceTokenStore } from "./notifications/service";
+import { createApp } from "./api";
+import { createDomainProcessor } from "./domain-processor";
+import { PostgresDatabase } from "./postgres-db";
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +55,9 @@ const PORT = parseInt(process.env.PORT ?? "3000", 10);
 // ── Database ──────────────────────────────────────────────────────────────────
 
 const pgPool = new Pool({ connectionString: DATABASE_URL });
+const notificationService = new NotificationService({
+  deviceTokenStore: new PostgresDeviceTokenStore(pgPool),
+});
 
 /**
  * Idempotently ensure the staging table and cursor exist. Mirrors
@@ -68,7 +78,7 @@ async function ensureSchema(): Promise<void> {
     )
   `);
   await pgPool.query(`
-    CREATE TABLE IF NOT EXISTS indexer_state (
+    CREATE TABLE IF NOT EXISTS indexer_cursor (
       id               TEXT        PRIMARY KEY,
       processed_cursor BIGINT      NOT NULL DEFAULT 0,
       updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -79,6 +89,58 @@ async function ensureSchema(): Promise<void> {
       ledger_sequence BIGINT      PRIMARY KEY,
       state_root      TEXT        NOT NULL,
       computed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS device_tokens (
+      id         SERIAL      PRIMARY KEY,
+      address    TEXT        NOT NULL,
+      token      TEXT        NOT NULL,
+      platform   TEXT        NOT NULL CHECK (platform IN ('ios', 'android', 'web')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (address, token)
+    )
+  `);
+  await pgPool.query(`
+    CREATE INDEX IF NOT EXISTS idx_device_tokens_address_updated
+      ON device_tokens (address, updated_at DESC)
+  `);
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS sent_notifications (
+      id              BIGSERIAL    PRIMARY KEY,
+      event_id        BIGINT       NOT NULL,
+      event_type      TEXT         NOT NULL,
+      recipient       TEXT         NOT NULL,
+      dispatch_key    TEXT         NOT NULL,
+      dispatched_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      UNIQUE (dispatch_key)
+    )
+  `);
+  await pgPool.query(`
+    CREATE INDEX IF NOT EXISTS idx_sent_notifications_recipient
+      ON sent_notifications (recipient, dispatched_at DESC)
+  `);
+
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS blocks (
+      blocker TEXT NOT NULL,
+      blocked TEXT NOT NULL,
+      PRIMARY KEY (blocker, blocked)
+    )
+  `);
+  await pgPool.query(`
+    CREATE INDEX IF NOT EXISTS idx_blocks_blocker ON blocks (blocker)
+  `);
+  await pgPool.query(`
+    CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks (blocked)
+  `);
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS dm_keys (
+      address       TEXT PRIMARY KEY,
+      x25519_pubkey TEXT NOT NULL,
+      updated_at    TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `);
 }
@@ -104,19 +166,13 @@ function toIngestEvent(event: RawEvent): IngestEvent {
 
 // ── HTTP + WebSocket server ──────────────────────────────────────────────────
 
-const httpServer = http.createServer((req, res) => {
-  if (req.url === "/health") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok" }));
-    return;
-  }
-  res.writeHead(404, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ error: "not found" }));
-});
+const apiApp = createApp(new PostgresDatabase(pgPool), pgPool);
+const httpServer = http.createServer(apiApp);
 
 const wsHandle = attachWebSocketServer(httpServer, bus, { path: "/ws" });
+const detachNotificationDispatcher = attachNotificationDispatcher(bus, pgPool, notificationService);
 
-// ── Graceful shutdown ─────────────────────────────────────────────────────────
+// ── Lifecycle control ────────────────────────────────────────────────────────
 
 const abortController = new AbortController();
 let shuttingDown = false;
@@ -126,6 +182,7 @@ async function shutdown(signal: string): Promise<void> {
   shuttingDown = true;
   console.log(`[indexer] Received ${signal}, shutting down…`);
   abortController.abort();
+  detachNotificationDispatcher();
   await wsHandle.close();
   httpServer.close();
   await pgPool.end();
@@ -135,7 +192,7 @@ async function shutdown(signal: string): Promise<void> {
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Core runner ──────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   console.log("[indexer] Starting Linkora indexer");
@@ -148,8 +205,11 @@ async function main(): Promise<void> {
   const pipeline = new IngestPipeline(pgPool, {
     streamId: CONTRACT_ID,
     bus,
-    // domainProcessor: wire decoded handlers here. Until contract XDR decoding
-    // is implemented, events are staged + fanned out without domain projection.
+    domainProcessor: createDomainProcessor(
+      pgPool,
+      notificationService,
+      new PostgresDatabase(pgPool)
+    ),
   });
 
   const processBatch: BatchProcessor = async (events) => {
@@ -159,6 +219,37 @@ async function main(): Promise<void> {
 
   // Resume gap detection from the last committed cursor.
   const initialCursor = await pipeline.readCursor();
+
+  // ── Startup gap detection ─────────────────────────────────────────────────
+  // If the indexer was down, fetch the current ledger from RPC and backfill
+  // any ledgers between processed_cursor and current before streaming live.
+  if (initialCursor > 0) {
+    try {
+      const rpcRes = await fetch(STELLAR_RPC_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getLatestLedger", params: {} }),
+      });
+      if (rpcRes.ok) {
+        const rpcJson = (await rpcRes.json()) as { result?: { sequence: number } };
+        const currentLedger = rpcJson.result?.sequence ?? 0;
+        if (currentLedger > initialCursor + 1) {
+          console.log(
+            `[indexer] Startup gap detected: processed=${initialCursor}, current=${currentLedger}. Backfilling…`
+          );
+          await backfillStartupGap(
+            { rpcUrl: STELLAR_RPC_URL, contractId: CONTRACT_ID },
+            initialCursor + 1,
+            currentLedger,
+            processBatch,
+            abortController.signal
+          );
+        }
+      }
+    } catch (err) {
+      console.warn("[indexer] Startup gap check failed (continuing):", err);
+    }
+  }
 
   httpServer.listen(PORT, () => {
     console.log(`[indexer] HTTP + WS listening on :${PORT} (ws path /ws)`);
@@ -184,6 +275,7 @@ async function main(): Promise<void> {
   );
 
   await wsHandle.close();
+  detachNotificationDispatcher();
   httpServer.close();
   await pgPool.end();
   console.log("[indexer] Shutdown complete.");

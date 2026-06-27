@@ -3,13 +3,16 @@ import {
   Contract,
   nativeToScVal,
   scValToNative,
+  Transaction,
   TransactionBuilder,
   Account,
   Keypair,
   xdr,
 } from "@stellar/stellar-sdk";
-import { Profile, Post, Pool } from "./types";
-import { mapError, NotFoundError } from "./errors";
+import { GeneratedLinkoraClient } from "./generated/client";
+import { Profile, Post, Pool, SimulationResult, LedgerFootprint } from "./types";
+import { mapError, NotFoundError, SimulationError } from "./errors";
+import type { GovParameter, GovProposal } from "./generated/types";
 
 const { isSimulationError, isSimulationSuccess } = rpc.Api;
 
@@ -19,64 +22,544 @@ const DEFAULT_TIMEOUT = 30;
 function scvAddress(value: string): xdr.ScVal {
   return nativeToScVal(value, { type: "address" });
 }
-
 function scvString(value: string): xdr.ScVal {
   return nativeToScVal(value);
 }
-
-function scvSymbol(value: string): xdr.ScVal {
-  return nativeToScVal(value, { type: "symbol" });
-}
-
 function scvU32(value: number): xdr.ScVal {
   return nativeToScVal(value, { type: "u32" });
 }
-
-function scvU64(value: number): xdr.ScVal {
-  return nativeToScVal(value, { type: "u64" });
-}
-
 function scvI128(value: number | bigint): xdr.ScVal {
   return nativeToScVal(value, { type: "i128" });
 }
 
-function scvAddressVec(addresses: string[]): xdr.ScVal {
-  return nativeToScVal(addresses.map(scvAddress), { type: "vec" });
-}
-
-/**
- * Configuration options for the SDK client
- */
 export interface ClientConfig {
   contractId: string;
   rpcUrl: string;
   networkPassphrase?: string;
+  /** Contract ID of the token factory contract */
+  tokenFactoryId?: string;
+}
+
+export interface DeployCreatorTokenParams {
+  deployer: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+  initialSupply: bigint;
+}
+
+export interface SetProfileWithNewTokenParams {
+  user: string;
+  username: string;
+  tokenParams: Omit<DeployCreatorTokenParams, "deployer">;
 }
 
 /**
- * Typed client for all Linkora social contract methods
+ * Typed client for all Linkora social contract methods.
+ *
+ * Extends the auto-generated GeneratedLinkoraClient with connection management,
+ * error handling, and type conversions (e.g. bigint ↔ number).
  */
-export class LinkoraClient {
-  private contractId: string;
-  private rpcUrl: string;
-  private networkPassphrase: string;
+export class LinkoraClient extends GeneratedLinkoraClient {
+  private tokenFactoryId?: string;
+  private readonly _rpcUrl: string;
+  private readonly _networkPassphrase: string;
+  private readonly _contractId: string;
 
   constructor(config: ClientConfig) {
-    this.contractId = config.contractId;
-    this.rpcUrl = config.rpcUrl;
-    this.networkPassphrase = config.networkPassphrase || DEFAULT_NETWORK;
+    super({
+      contractId: config.contractId,
+      rpcUrl: config.rpcUrl,
+      networkPassphrase: config.networkPassphrase || DEFAULT_NETWORK,
+    });
+    this._contractId = config.contractId;
+    this.tokenFactoryId = config.tokenFactoryId;
+    this._rpcUrl = config.rpcUrl;
+    this._networkPassphrase = config.networkPassphrase || DEFAULT_NETWORK;
   }
 
-  private async simulateCall(method: string, ...args: xdr.ScVal[]): Promise<xdr.ScVal | null> {
-    const server = new rpc.Server(this.rpcUrl);
-    const contract = new Contract(this.contractId);
+  // ── Soroban simulation and transaction preparation ─────────────────────────
+
+  /**
+   * Simulate a write operation and return fee and footprint information.
+   * Uses a fresh op factory each call to avoid XDR object reuse across transactions.
+   */
+  async simulate(method: string, ...args: xdr.ScVal[]): Promise<SimulationResult> {
+    const server = new rpc.Server(this._rpcUrl);
+    const contract = new Contract(this._contractId);
+    const buildOp = () => contract.call(method, ...args);
+
+    const source = Keypair.random();
+    const account = new Account(source.publicKey(), "0");
+    const tx = new TransactionBuilder(account, {
+      fee: "100",
+      networkPassphrase: this._networkPassphrase,
+    })
+      .addOperation(buildOp())
+      .setTimeout(DEFAULT_TIMEOUT)
+      .build();
+
+    const result = await server.simulateTransaction(tx);
+
+    if (isSimulationError(result)) {
+      throw new SimulationError(
+        `Transaction simulation failed: ${result.error}`,
+        result.events,
+        result.error
+      );
+    }
+
+    if (!isSimulationSuccess(result) || !result.result) {
+      throw new SimulationError("Unknown simulation error", undefined, result);
+    }
+
+    const resourceFee = result.minResourceFee || "0";
+
+    let footprint: LedgerFootprint = { readOnly: [], readWrite: [] };
+    if (result.transactionData) {
+      try {
+        const built = result.transactionData.build();
+        footprint = {
+          readOnly: built
+            .resources()
+            .footprint()
+            .readOnly()
+            .map((e: unknown) => JSON.stringify(e)),
+          readWrite: built
+            .resources()
+            .footprint()
+            .readWrite()
+            .map((e: unknown) => JSON.stringify(e)),
+        };
+      } catch {
+        // Keep empty footprint if structure extraction fails
+      }
+    }
+
+    return { success: true, resourceFee, footprint };
+  }
+
+  /**
+   * Prepare a transaction for signing by simulating it with a temp keypair, then
+   * building the real tx for sourceAccount with injected fees and footprint.
+   * The operation is built independently for each transaction to avoid XDR state sharing.
+   */
+  async prepareTransaction(
+    method: string,
+    sourceAccount: Account,
+    ...args: xdr.ScVal[]
+  ): Promise<Transaction> {
+    const server = new rpc.Server(this._rpcUrl);
+    const contract = new Contract(this._contractId);
+    const buildOp = () => contract.call(method, ...args);
+
+    const tempSource = Keypair.random();
+    const tempAccount = new Account(tempSource.publicKey(), "0");
+    const tempTx = new TransactionBuilder(tempAccount, {
+      fee: "100",
+      networkPassphrase: this._networkPassphrase,
+    })
+      .addOperation(buildOp())
+      .setTimeout(DEFAULT_TIMEOUT)
+      .build();
+
+    const simulationResult = await server.simulateTransaction(tempTx);
+
+    if (isSimulationError(simulationResult)) {
+      throw new SimulationError(
+        `Transaction preparation failed: ${simulationResult.error}`,
+        simulationResult.events,
+        simulationResult.error
+      );
+    }
+
+    if (!isSimulationSuccess(simulationResult) || !simulationResult.result) {
+      throw new SimulationError(
+        "Unknown simulation error during transaction preparation",
+        undefined,
+        simulationResult
+      );
+    }
+
+    const resourceFee = simulationResult.minResourceFee || "0";
+    const sorobanData = simulationResult.transactionData;
+
+    let builder = new TransactionBuilder(sourceAccount, {
+      fee: String(Number(resourceFee) + 100),
+      networkPassphrase: this._networkPassphrase,
+    })
+      .addOperation(buildOp())
+      .setTimeout(DEFAULT_TIMEOUT);
+
+    if (sorobanData) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      builder = (builder as any).setSorobanData(sorobanData);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (builder as any).build() as Transaction;
+  }
+
+  /**
+   * Build a multi-operation transaction with multiple Soroban invocations.
+   * Operations are freshly constructed for both the simulation and the real transaction
+   * to avoid XDR object reuse across different TransactionBuilder instances.
+   */
+  async buildMultiOpTx(
+    sourceAccount: Account,
+    ops: Array<{ method: string; args: xdr.ScVal[] }>
+  ): Promise<Transaction> {
+    const server = new rpc.Server(this._rpcUrl);
+    const contract = new Contract(this._contractId);
+
+    const tempSource = Keypair.random();
+    const tempAccount = new Account(tempSource.publicKey(), "0");
+    const tempBuilder = new TransactionBuilder(tempAccount, {
+      fee: "100",
+      networkPassphrase: this._networkPassphrase,
+    });
+    for (const op of ops) {
+      tempBuilder.addOperation(contract.call(op.method, ...op.args));
+    }
+    const tempTx = tempBuilder.setTimeout(DEFAULT_TIMEOUT).build();
+
+    const simulationResult = await server.simulateTransaction(tempTx);
+
+    if (isSimulationError(simulationResult)) {
+      throw new SimulationError(
+        `Multi-operation transaction simulation failed: ${simulationResult.error}`,
+        simulationResult.events,
+        simulationResult.error
+      );
+    }
+
+    if (!isSimulationSuccess(simulationResult) || !simulationResult.result) {
+      throw new SimulationError(
+        "Unknown simulation error during multi-op transaction preparation",
+        undefined,
+        simulationResult
+      );
+    }
+
+    const resourceFee = simulationResult.minResourceFee || "0";
+    const sorobanData = simulationResult.transactionData;
+
+    const realBuilder = new TransactionBuilder(sourceAccount, {
+      fee: String(Number(resourceFee) + 100),
+      networkPassphrase: this._networkPassphrase,
+    });
+    for (const op of ops) {
+      realBuilder.addOperation(contract.call(op.method, ...op.args));
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let readyBuilder: any = realBuilder.setTimeout(DEFAULT_TIMEOUT);
+
+    if (sorobanData) {
+      readyBuilder = readyBuilder.setSorobanData(sorobanData);
+    }
+
+    return readyBuilder.build() as Transaction;
+  }
+
+  // ── Override read methods with error handling ─────────────────────────────
+
+  async getProfile(address: string): Promise<Profile | null> {
+    try {
+      return await super.getProfile(address);
+    } catch (e) {
+      if (e instanceof NotFoundError) return null;
+      throw e;
+    }
+  }
+
+  async getProfileCount(): Promise<bigint> {
+    return super.getProfileCount();
+  }
+
+  async getPost(postId: number | bigint): Promise<Post | null> {
+    try {
+      return await super.getPost(BigInt(postId));
+    } catch (e) {
+      if (e instanceof NotFoundError) return null;
+      throw e;
+    }
+  }
+
+  async getPostCount(): Promise<bigint> {
+    return super.getPostCount();
+  }
+
+  async getLikeCount(postId: number | bigint): Promise<bigint> {
+    return super.getLikeCount(BigInt(postId));
+  }
+
+  async getTreasury(): Promise<string | null> {
+    try {
+      return await super.getTreasury();
+    } catch {
+      return null;
+    }
+  }
+
+  async getPool(poolId: string): Promise<Pool | null> {
+    try {
+      return await super.getPool(poolId);
+    } catch (e) {
+      if (e instanceof NotFoundError) return null;
+      throw e;
+    }
+  }
+
+  // ── DM key methods ───────────────────────────────────────────────────────
+
+  async getDmKey(address: string): Promise<Uint8Array | null> {
+    try {
+      return await super.getDmKey(address);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Publish a user's X25519 public key for encrypted direct messages.
+   */
+  publishDmKey(user: string, x25519PubKey: Uint8Array): string {
+    if (x25519PubKey.length !== 32) {
+      throw new Error("X25519 public key must be exactly 32 bytes");
+    }
+    return super.publishDmKey(user, x25519PubKey);
+  }
+
+  /**
+   * Build a publish_dm_key transaction with the caller as the proper source
+   * account so it can be signed directly by a browser wallet (e.g. Freighter).
+   *
+   * Unlike publishDmKey(), which uses a random placeholder account, this method:
+   *  1. Fetches the real account sequence from Horizon.
+   *  2. Simulates the transaction to obtain accurate resource fees.
+   *  3. Returns a base64-encoded XDR ready for wallet signing and RPC submission.
+   */
+  async prepareDmKeyTx(
+    userAddress: string,
+    x25519PubKey: Uint8Array,
+    horizonUrl?: string,
+  ): Promise<string> {
+    if (x25519PubKey.length !== 32) {
+      throw new Error("X25519 public key must be exactly 32 bytes");
+    }
+
+    const horizon =
+      horizonUrl ??
+      (this._networkPassphrase.includes("Test")
+        ? "https://horizon-testnet.stellar.org"
+        : "https://horizon.stellar.org");
+
+    const res = await fetch(`${horizon}/accounts/${userAddress}`);
+    if (!res.ok) {
+      throw new Error(
+        `Could not fetch account from Horizon (HTTP ${res.status}). ` +
+          `Make sure the wallet is funded on the correct network.`,
+      );
+    }
+    const data = (await res.json()) as { sequence: string };
+
+    const sourceAccount = new Account(userAddress, data.sequence);
+    const tx = await this.prepareTransaction(
+      "publish_dm_key",
+      sourceAccount,
+      nativeToScVal(userAddress, { type: "address" }),
+      nativeToScVal(Array.from(x25519PubKey), { type: "bytes" }),
+    );
+
+    return tx.toEnvelope().toXDR("base64");
+  }
+
+  // ── Governance convenience overrides ──────────────────────────────────────
+
+  govPropose(
+    proposer: string,
+    parameter: GovParameter,
+    newValue: number | bigint,
+    newAddress: string | null
+  ): string {
+    return super.govPropose(proposer, parameter, BigInt(newValue), newAddress);
+  }
+
+  govVote(voter: string, proposalId: number | bigint, support: boolean): string {
+    return super.govVote(voter, BigInt(proposalId), support);
+  }
+
+  govExecute(proposalId: number | bigint): string {
+    return super.govExecute(BigInt(proposalId));
+  }
+
+  govGetProposal(proposalId: number | bigint): Promise<GovProposal> {
+    return super.govGetProposal(BigInt(proposalId));
+  }
+
+  effectiveQuorum(proposalId: number | bigint): Promise<number> {
+    return super.effectiveQuorum(BigInt(proposalId));
+  }
+
+  govVeto(signers: string[], poolId: string, proposalId: number | bigint): string {
+    return super.govVeto(signers, poolId, BigInt(proposalId));
+  }
+
+  // ── Override write methods with number→bigint conversions ─────────────────
+
+  deletePost(author: string, postId: number | bigint): string {
+    return super.deletePost(author, BigInt(postId));
+  }
+
+  likePost(user: string, postId: number | bigint): string {
+    return super.likePost(user, BigInt(postId));
+  }
+
+  tip(tipper: string, postId: number | bigint, token: string, amount: number | bigint): string {
+    return super.tip(tipper, BigInt(postId), token, BigInt(amount));
+  }
+
+  poolDeposit(depositor: string, poolId: string, token: string, amount: number | bigint): string {
+    return super.poolDeposit(depositor, poolId, token, BigInt(amount));
+  }
+
+  poolWithdraw(
+    signers: string[],
+    poolId: string,
+    amount: number | bigint,
+    recipient: string
+  ): string {
+    return super.poolWithdraw(signers, poolId, BigInt(amount), recipient);
+  }
+
+  // ── Analytics Oracle ────────────────────────────────────────────────────────
+
+  /**
+   * Build a transaction envelope for `verify_analytics_attestation`.
+   */
+  verifyAnalyticsAttestation(
+    oracleName: string,
+    reportCbor: Uint8Array,
+    signature: Uint8Array,
+    creator: string,
+    windowStart: number,
+    windowEnd: number
+  ): string {
+    return this.buildTxForContract(
+      this._contractId,
+      "verify_analytics_attestation",
+      nativeToScVal(oracleName, { type: "symbol" }),
+      nativeToScVal(Buffer.from(reportCbor), { type: "bytes" }),
+      nativeToScVal(Buffer.from(signature), { type: "bytes" }),
+      scvAddress(creator),
+      nativeToScVal(windowStart, { type: "u64" }),
+      nativeToScVal(windowEnd, { type: "u64" })
+    );
+  }
+
+  // ── Token Factory Methods ────────────────────────────────────────────────────
+
+  /**
+   * Build a transaction XDR that calls `deploy_creator_token` on the token
+   * factory contract.
+   *
+   * Requires `tokenFactoryId` to be set in `ClientConfig`.
+   */
+  deployCreatorToken(params: DeployCreatorTokenParams): string {
+    if (!this.tokenFactoryId) {
+      throw new Error("tokenFactoryId must be set in ClientConfig to use deployCreatorToken");
+    }
+    return this.buildTxForContract(
+      this.tokenFactoryId,
+      "deploy_creator_token",
+      scvAddress(params.deployer),
+      scvString(params.name),
+      scvString(params.symbol),
+      scvU32(params.decimals),
+      scvI128(params.initialSupply)
+    );
+  }
+
+  /**
+   * Build two sequential transaction XDRs that together deploy a creator token
+   * and set the user's profile with the new token address.
+   *
+   * Requires `tokenFactoryId` to be set in `ClientConfig`.
+   */
+  setProfileWithNewToken(params: SetProfileWithNewTokenParams): [string, string] {
+    if (!this.tokenFactoryId) {
+      throw new Error("tokenFactoryId must be set in ClientConfig to use setProfileWithNewToken");
+    }
+    const deployTx = this.deployCreatorToken({
+      deployer: params.user,
+      ...params.tokenParams,
+    });
+    // NOTE: the token address used here is a placeholder; callers should
+    // first simulate deployCreatorToken to get the real token address, then
+    // call setProfile(user, username, tokenAddress) directly.
+    const profileTx = this.setProfile(params.user, params.username, params.user);
+    return [deployTx, profileTx];
+  }
+
+  /**
+   * Simulate `deploy_creator_token` to determine the token address that would
+   * be created. Does not submit a transaction.
+   *
+   * Requires `tokenFactoryId` to be set in `ClientConfig`.
+   */
+  async simulateDeployCreatorToken(params: DeployCreatorTokenParams): Promise<string | null> {
+    if (!this.tokenFactoryId) {
+      throw new Error(
+        "tokenFactoryId must be set in ClientConfig to use simulateDeployCreatorToken"
+      );
+    }
+    const retval = await this.simulateCallOnContract(
+      this.tokenFactoryId,
+      "deploy_creator_token",
+      scvAddress(params.deployer),
+      scvString(params.name),
+      scvString(params.symbol),
+      scvU32(params.decimals),
+      scvI128(params.initialSupply)
+    );
+    if (!retval) return null;
+    const native = scValToNative(retval);
+    return native == null ? null : (native as string);
+  }
+
+  // ── Private helpers ──────────────────────────────────────────────────────────
+
+  private buildTxForContract(contractId: string, method: string, ...args: xdr.ScVal[]): string {
+    const contract = new Contract(contractId);
     const op = contract.call(method, ...args);
 
     const source = Keypair.random();
     const account = new Account(source.publicKey(), "0");
     const tx = new TransactionBuilder(account, {
       fee: "100",
-      networkPassphrase: this.networkPassphrase,
+      networkPassphrase: this._networkPassphrase,
+    })
+      .addOperation(op)
+      .setTimeout(DEFAULT_TIMEOUT)
+      .build();
+
+    return tx.toEnvelope().toXDR("base64");
+  }
+
+  private async simulateCallOnContract(
+    contractId: string,
+    method: string,
+    ...args: xdr.ScVal[]
+  ): Promise<xdr.ScVal | null> {
+    const server = new rpc.Server(this._rpcUrl);
+    const contract = new Contract(contractId);
+    const op = contract.call(method, ...args);
+
+    const source = Keypair.random();
+    const account = new Account(source.publicKey(), "0");
+    const tx = new TransactionBuilder(account, {
+      fee: "100",
+      networkPassphrase: this._networkPassphrase,
     })
       .addOperation(op)
       .setTimeout(DEFAULT_TIMEOUT)
@@ -90,313 +573,5 @@ export class LinkoraClient {
     if (!isSimulationSuccess(result) || !result.result) return null;
 
     return result.result.retval;
-  }
-
-  private buildTx(method: string, ...args: xdr.ScVal[]): string {
-    const contract = new Contract(this.contractId);
-    const op = contract.call(method, ...args);
-
-    const source = Keypair.random();
-    const account = new Account(source.publicKey(), "0");
-    const tx = new TransactionBuilder(account, {
-      fee: "100",
-      networkPassphrase: this.networkPassphrase,
-    })
-      .addOperation(op)
-      .setTimeout(DEFAULT_TIMEOUT)
-      .build();
-
-    return tx.toEnvelope().toXDR("base64");
-  }
-
-  // ── Read Methods ────────────────────────────────────────────────────────────
-
-  async getProfile(address: string): Promise<Profile | null> {
-    try {
-      const retval = await this.simulateCall("get_profile", scvAddress(address));
-      if (!retval) return null;
-      const raw = scValToNative(retval);
-      if (raw == null) return null;
-      return raw as Profile;
-    } catch (e) {
-      if (e instanceof NotFoundError) return null;
-      throw e;
-    }
-  }
-
-  async getProfileCount(): Promise<number> {
-    const retval = await this.simulateCall("get_profile_count");
-    if (!retval) return 0;
-    return Number(scValToNative(retval));
-  }
-
-  async getAddressByUsername(username: string): Promise<string | null> {
-    const retval = await this.simulateCall("get_address_by_username", scvString(username));
-    if (!retval) return null;
-    const raw = scValToNative(retval);
-    return raw == null ? null : (raw as string);
-  }
-
-  async getPost(postId: number): Promise<Post | null> {
-    try {
-      const retval = await this.simulateCall("get_post", scvU64(postId));
-      if (!retval) return null;
-      const raw = scValToNative(retval);
-      if (raw == null) return null;
-      return raw as Post;
-    } catch (e) {
-      if (e instanceof NotFoundError) return null;
-      throw e;
-    }
-  }
-
-  async getPostCount(): Promise<number> {
-    const retval = await this.simulateCall("get_post_count");
-    if (!retval) return 0;
-    return Number(scValToNative(retval));
-  }
-
-  async getPostsByAuthor(author: string, offset: number, limit: number): Promise<number[]> {
-    const retval = await this.simulateCall(
-      "get_posts_by_author",
-      scvAddress(author),
-      scvU32(offset),
-      scvU32(limit)
-    );
-    if (!retval) return [];
-    return (scValToNative(retval) as bigint[]).map(Number);
-  }
-
-  async getFollowing(address: string, offset: number, limit: number): Promise<string[]> {
-    const retval = await this.simulateCall(
-      "get_following",
-      scvAddress(address),
-      scvU32(offset),
-      scvU32(limit)
-    );
-    if (!retval) return [];
-    return scValToNative(retval) as string[];
-  }
-
-  async getFollowers(address: string, offset: number, limit: number): Promise<string[]> {
-    const retval = await this.simulateCall(
-      "get_followers",
-      scvAddress(address),
-      scvU32(offset),
-      scvU32(limit)
-    );
-    if (!retval) return [];
-    return scValToNative(retval) as string[];
-  }
-
-  async isBlocked(blocker: string, blocked: string): Promise<boolean> {
-    const retval = await this.simulateCall("is_blocked", scvAddress(blocker), scvAddress(blocked));
-    if (!retval) return false;
-    return scValToNative(retval) as boolean;
-  }
-
-  async hasLiked(address: string, postId: number): Promise<boolean> {
-    const retval = await this.simulateCall("has_liked", scvAddress(address), scvU64(postId));
-    if (!retval) return false;
-    return scValToNative(retval) as boolean;
-  }
-
-  async getLikeCount(postId: number): Promise<number> {
-    const retval = await this.simulateCall("get_like_count", scvU64(postId));
-    if (!retval) return 0;
-    return Number(scValToNative(retval));
-  }
-
-  async getPool(poolId: string): Promise<Pool | null> {
-    try {
-      const retval = await this.simulateCall("get_pool", scvSymbol(poolId));
-      if (!retval) return null;
-      const raw = scValToNative(retval);
-      if (raw == null) return null;
-      return raw as Pool;
-    } catch (e) {
-      if (e instanceof NotFoundError) return null;
-      throw e;
-    }
-  }
-
-  async getPoolAdmins(poolId: string): Promise<string[]> {
-    const retval = await this.simulateCall("get_pool_admins", scvSymbol(poolId));
-    if (!retval) return [];
-    return scValToNative(retval) as string[];
-  }
-
-  async getFeeBps(): Promise<number> {
-    const retval = await this.simulateCall("get_fee_bps");
-    if (!retval) return 0;
-    return Number(scValToNative(retval));
-  }
-
-  async getTreasury(): Promise<string | null> {
-    const retval = await this.simulateCall("get_treasury");
-    if (!retval) return null;
-    const raw = scValToNative(retval);
-    return raw == null ? null : (raw as string);
-  }
-
-  async getTipCooldownWindow(): Promise<number> {
-    const retval = await this.simulateCall("get_tip_cooldown_window");
-    if (!retval) return 0;
-    return Number(scValToNative(retval));
-  }
-
-  /**
-   * Get a user's X25519 public key for direct messages.
-   * Returns null if the user hasn't published a DM key.
-   */
-  async getDmKey(address: string): Promise<Uint8Array | null> {
-    const result = await this.simulateCall("get_dm_key", scvAddress(address));
-    if (!result) return null;
-    const native = scValToNative(result);
-    return native ? new Uint8Array(native) : null;
-  }
-
-  // ── Write Methods (XDR envelope builders) ───────────────────────────────────
-
-  setProfile(user: string, username: string, creatorToken: string): string {
-    return this.buildTx(
-      "set_profile",
-      scvAddress(user),
-      scvString(username),
-      scvAddress(creatorToken)
-    );
-  }
-
-  deleteProfile(user: string): string {
-    return this.buildTx("delete_profile", scvAddress(user));
-  }
-
-  /**
-   * Publish a user's X25519 public key for encrypted direct messages.
-   */
-  publishDmKey(user: string, x25519PubKey: Uint8Array): string {
-    if (x25519PubKey.length !== 32) {
-      throw new Error("X25519 public key must be exactly 32 bytes");
-    }
-    return this.buildTx("publish_dm_key", scvAddress(user), nativeToScVal(Array.from(x25519PubKey), { type: "bytes" }));
-  }
-
-  createPost(author: string, content: string): string {
-    return this.buildTx("create_post", scvAddress(author), scvString(content));
-  }
-
-  deletePost(author: string, postId: number): string {
-    return this.buildTx("delete_post", scvAddress(author), scvU64(postId));
-  }
-
-  follow(follower: string, followee: string): string {
-    return this.buildTx("follow", scvAddress(follower), scvAddress(followee));
-  }
-
-  unfollow(follower: string, followee: string): string {
-    return this.buildTx("unfollow", scvAddress(follower), scvAddress(followee));
-  }
-
-  blockUser(blocker: string, blocked: string): string {
-    return this.buildTx("block_user", scvAddress(blocker), scvAddress(blocked));
-  }
-
-  unblockUser(blocker: string, blocked: string): string {
-    return this.buildTx("unblock_user", scvAddress(blocker), scvAddress(blocked));
-  }
-
-  likePost(user: string, postId: number): string {
-    return this.buildTx("like_post", scvAddress(user), scvU64(postId));
-  }
-
-  tip(tipper: string, postId: number, token: string, amount: number | bigint): string {
-    return this.buildTx(
-      "tip",
-      scvAddress(tipper),
-      scvU64(postId),
-      scvAddress(token),
-      scvI128(amount)
-    );
-  }
-
-  createPool(
-    admin: string,
-    poolId: string,
-    token: string,
-    initialAdmins: string[],
-    threshold: number
-  ): string {
-    return this.buildTx(
-      "create_pool",
-      scvAddress(admin),
-      scvSymbol(poolId),
-      scvAddress(token),
-      scvAddressVec(initialAdmins),
-      scvU32(threshold)
-    );
-  }
-
-  poolDeposit(depositor: string, poolId: string, token: string, amount: number | bigint): string {
-    return this.buildTx(
-      "pool_deposit",
-      scvAddress(depositor),
-      scvSymbol(poolId),
-      scvAddress(token),
-      scvI128(amount)
-    );
-  }
-
-  poolWithdraw(
-    signers: string[],
-    poolId: string,
-    amount: number | bigint,
-    recipient: string
-  ): string {
-    return this.buildTx(
-      "pool_withdraw",
-      scvAddressVec(signers),
-      scvSymbol(poolId),
-      scvI128(amount),
-      scvAddress(recipient)
-    );
-  }
-
-  addPoolAdmin(signers: string[], poolId: string, newAdmin: string): string {
-    return this.buildTx(
-      "add_pool_admin",
-      scvAddressVec(signers),
-      scvSymbol(poolId),
-      scvAddress(newAdmin)
-    );
-  }
-
-  removePoolAdmin(signers: string[], poolId: string, admin: string): string {
-    return this.buildTx(
-      "remove_pool_admin",
-      scvAddressVec(signers),
-      scvSymbol(poolId),
-      scvAddress(admin)
-    );
-  }
-
-  updatePoolThreshold(signers: string[], poolId: string, threshold: number): string {
-    return this.buildTx(
-      "update_pool_threshold",
-      scvAddressVec(signers),
-      scvSymbol(poolId),
-      scvU32(threshold)
-    );
-  }
-
-  setFee(feeBps: number): string {
-    return this.buildTx("set_fee", scvU32(feeBps));
-  }
-
-  setTreasury(treasury: string): string {
-    return this.buildTx("set_treasury", scvAddress(treasury));
-  }
-
-  setTipCooldownWindow(cooldownLedgers: number): string {
-    return this.buildTx("set_tip_cooldown_window", scvU32(cooldownLedgers));
   }
 }
