@@ -62,7 +62,5 @@ export interface Signer {
    * @param tx The transaction to sign
    * @param derivationPath Optional derivation path for hardware wallets
    */
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  signTransaction(tx: any, derivationPath?: string): Promise<any>;
-  /* eslint-enable @typescript-eslint/no-explicit-any */
+  signTransaction(tx: string | TransactionLike, derivationPath?: string): Promise<unknown>;
 }
