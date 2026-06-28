@@ -16,6 +16,7 @@ import { Pool } from "pg";
 import { Keypair } from "@stellar/stellar-sdk";
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha512";
+import { rateLimit } from "express-rate-limit";
 import { encodeReport } from "./codec.js";
 import { signReport } from "./signer.js";
 import { fetchCreatorStats } from "./db.js";
@@ -142,6 +143,23 @@ async function scheduleLoop(currentLedger: bigint): Promise<void> {
 // ── REST API ──────────────────────────────────────────────────────────────────
 
 const app = express();
+
+const RATE_LIMIT_RPM = parseInt(process.env.RATE_LIMIT_RPM || "100", 10);
+
+const apiLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: RATE_LIMIT_RPM,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    res.status(429).json({
+      error: "Too Many Requests",
+      code: "RATE_LIMIT_EXCEEDED",
+    });
+  },
+});
+
+app.use(apiLimiter);
 
 /**
  * GET /attestations/:creator

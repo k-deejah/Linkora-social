@@ -379,7 +379,10 @@ export class LinkoraClient extends GeneratedLinkoraClient {
    */
   publishDmKey(user: string, x25519PubKey: Uint8Array): string {
     if (x25519PubKey.length !== 32) {
-      throw new Error("X25519 public key must be exactly 32 bytes");
+      throw new ValidationError("X25519 public key must be exactly 32 bytes", {
+        actual: x25519PubKey.length,
+        expected: 32,
+      });
     }
     return super.publishDmKey(user, x25519PubKey);
   }
@@ -399,7 +402,10 @@ export class LinkoraClient extends GeneratedLinkoraClient {
     horizonUrl?: string
   ): Promise<string> {
     if (x25519PubKey.length !== 32) {
-      throw new Error("X25519 public key must be exactly 32 bytes");
+      throw new ValidationError("X25519 public key must be exactly 32 bytes", {
+        actual: x25519PubKey.length,
+        expected: 32,
+      });
     }
 
     const horizon =
@@ -410,7 +416,7 @@ export class LinkoraClient extends GeneratedLinkoraClient {
 
     const res = await fetch(`${horizon}/accounts/${userAddress}`);
     if (!res.ok) {
-      throw new Error(
+      throw new NetworkError(
         `Could not fetch account from Horizon (HTTP ${res.status}). ` +
           `Make sure the wallet is funded on the correct network.`
       );
@@ -646,7 +652,12 @@ export class LinkoraClient extends GeneratedLinkoraClient {
    */
   deployCreatorToken(params: DeployCreatorTokenParams): string {
     if (!this.tokenFactoryId) {
-      throw new Error("tokenFactoryId must be set in ClientConfig to use deployCreatorToken");
+      throw new ValidationError(
+        "tokenFactoryId must be set in ClientConfig to use deployCreatorToken",
+        {
+          field: "tokenFactoryId",
+        }
+      );
     }
     return this.buildTxForContract(
       this.tokenFactoryId,
@@ -667,7 +678,12 @@ export class LinkoraClient extends GeneratedLinkoraClient {
    */
   setProfileWithNewToken(params: SetProfileWithNewTokenParams): [string, string] {
     if (!this.tokenFactoryId) {
-      throw new Error("tokenFactoryId must be set in ClientConfig to use setProfileWithNewToken");
+      throw new ValidationError(
+        "tokenFactoryId must be set in ClientConfig to use setProfileWithNewToken",
+        {
+          field: "tokenFactoryId",
+        }
+      );
     }
     const deployTx = this.deployCreatorToken({
       deployer: params.user,
@@ -688,8 +704,9 @@ export class LinkoraClient extends GeneratedLinkoraClient {
    */
   async simulateDeployCreatorToken(params: DeployCreatorTokenParams): Promise<string | null> {
     if (!this.tokenFactoryId) {
-      throw new Error(
-        "tokenFactoryId must be set in ClientConfig to use simulateDeployCreatorToken"
+      throw new ValidationError(
+        "tokenFactoryId must be set in ClientConfig to use simulateDeployCreatorToken",
+        { field: "tokenFactoryId" }
       );
     }
     const retval = await this.simulateCallOnContract(

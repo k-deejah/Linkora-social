@@ -22,6 +22,8 @@ import {
   notFoundHandler,
   validateContentType,
 } from './middleware';
+import { messageAuthMiddleware } from './middleware/auth';
+import { rateLimitMiddleware } from './middleware/rateLimit';
 
 // Load environment variables
 dotenv.config();
@@ -56,11 +58,6 @@ async function createApp() {
   // Body parsing
   app.use(express.json({ limit: '1mb' })); // Limit request size
 
-  // Custom middleware
-  app.use(requestIdMiddleware);
-  app.use(requestLoggerMiddleware);
-  app.use(validateContentType);
-
   // Initialize database
   console.log('Connecting to database...');
   const database = new Database(config.databaseUrl);
@@ -72,6 +69,16 @@ async function createApp() {
   // Initialize cleanup service
   const cleanupService = new CleanupService(database, config.messageTtlDays);
   cleanupService.start();
+
+  // Custom middleware
+  app.use(requestIdMiddleware);
+  app.use(requestLoggerMiddleware);
+  app.use(validateContentType);
+
+  // Rate limiting
+  app.use('/api', rateLimitMiddleware);
+  const messageAuth = messageAuthMiddleware(authService);
+  app.use('/api/messages', messageAuth);
 
   // API routes
   app.use('/api', createRouter(database, authService));

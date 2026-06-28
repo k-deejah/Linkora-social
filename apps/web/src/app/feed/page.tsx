@@ -8,6 +8,7 @@ import { OptimisticStore, useOptimisticLike, useOptimisticTip } from "@/lib/opti
 import { LinkoraClient } from "../../../../../packages/sdk/src/client";
 import { validateAmount, validateStellarAddress } from "@/lib/validate";
 import { FieldError } from "@/components/forms/FieldError";
+import { AnimatedList } from "@/components/AnimatedList";
 
 /* ────────────────────────────────────────────────────────────────────────── */
 /*  Config & Constants                                                       */
@@ -471,7 +472,7 @@ export default function FeedPage() {
                         />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-bold mb-1">You&apos;re not following anyone yet</h3>
+                    <h2 className="text-lg font-bold mb-1">You&apos;re not following anyone yet</h2>
                     <p className="text-[var(--text-muted)] text-sm mb-6 max-w-xs mx-auto">
                       Follow creators you like to see their latest posts in your feed.
                     </p>
@@ -514,7 +515,7 @@ export default function FeedPage() {
                         />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-bold mb-1">No posts found</h3>
+                    <h2 className="text-lg font-bold mb-1">No posts found</h2>
                     <p className="text-[var(--text-muted)] text-sm mb-6">
                       {activeTab === "following"
                         ? "Accounts you follow haven't posted yet."
@@ -534,7 +535,7 @@ export default function FeedPage() {
             ) : (
               /* Feed list */
               <>
-                <div className="space-y-4">
+                <div className="space-y-4" role="feed" aria-label="Post feed">
                   {posts.map((post) => (
                     <InteractivePostCard
                       key={post.id}
@@ -574,6 +575,7 @@ export default function FeedPage() {
               <button
                 onClick={handleCloseTipModal}
                 className="text-[var(--text-muted)] hover:text-[var(--foreground)] text-xl transition-colors"
+                aria-label="Close tip modal"
               >
                 ✕
               </button>
