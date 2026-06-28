@@ -93,12 +93,10 @@ export interface Database {
   }): Promise<{ posts: Post[]; total: number }>;
   getFollowers(
     address: string,
-    limit: number,
-    offset: number
-  ): Promise<{ followers: string[]; total: number }>;
+    opts: { limit: number; cursor?: number }
+  ): Promise<{ followers: string[]; total: number; nextCursor?: number }>;
   getFollowing(
     address: string,
-    limit: number,
-    offset: number
-  ): Promise<{ following: string[]; total: number }>;
+    opts: { limit: number; cursor?: number }
+  ): Promise<{ following: string[]; total: number; nextCursor?: number }>;
 }
