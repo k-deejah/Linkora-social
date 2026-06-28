@@ -15,6 +15,7 @@ import { Profile, Post, Pool, SimulationResult, LedgerFootprint } from "./types"
 import { mapError, NotFoundError, SimulationError, InvalidInputError } from "./errors";
 import { GovParameter } from "./generated/types";
 import type { GovProposal } from "./generated/types";
+import { ConnectionHealthMonitor, HealthCheckConfig, ConnectionStatusCallback } from "./health";
 
 const { isSimulationError, isSimulationSuccess } = rpc.Api;
 
@@ -92,6 +93,8 @@ export interface ClientConfig {
   networkPassphrase?: string;
   /** Contract ID of the token factory contract */
   tokenFactoryId?: string;
+  /** Connection health-check options */
+  healthCheck?: HealthCheckConfig & { autoStart?: boolean };
 }
 
 export interface DeployCreatorTokenParams {
@@ -119,6 +122,7 @@ export class LinkoraClient extends GeneratedLinkoraClient {
   private readonly _rpcUrl: string;
   private readonly _networkPassphrase: string;
   private readonly _contractId: string;
+  private readonly _healthMonitor: ConnectionHealthMonitor;
 
   constructor(config: ClientConfig) {
     super({
@@ -130,6 +134,29 @@ export class LinkoraClient extends GeneratedLinkoraClient {
     this.tokenFactoryId = config.tokenFactoryId;
     this._rpcUrl = config.rpcUrl;
     this._networkPassphrase = config.networkPassphrase || DEFAULT_NETWORK;
+
+    const { autoStart, ...healthCfg } = config.healthCheck ?? {};
+    this._healthMonitor = new ConnectionHealthMonitor(this._rpcUrl, healthCfg);
+    if (autoStart) this._healthMonitor.start();
+  }
+
+  /** Ping the RPC endpoint once. Returns true if reachable. */
+  healthCheck(): Promise<boolean> {
+    return this._healthMonitor.healthCheck();
+  }
+
+  /**
+   * Register a callback for connection status changes ("connected" | "disconnected").
+   * Starts the periodic health-check loop on first call if not already running.
+   */
+  onConnectionStatusChange(callback: ConnectionStatusCallback): void {
+    this._healthMonitor.onConnectionStatusChange(callback);
+    this._healthMonitor.start();
+  }
+
+  /** Stop the periodic health-check loop. */
+  stopHealthChecks(): void {
+    this._healthMonitor.stop();
   }
 
   // ── Soroban simulation and transaction preparation ─────────────────────────
