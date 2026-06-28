@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState, forwardRef } from "react";
 import { validateSearchQuery } from "@/lib/validate";
 
 interface SearchBarProps {
@@ -10,6 +10,8 @@ interface SearchBarProps {
   className?: string;
   inputClassName?: string;
   buttonLabel?: string;
+  /** Optional ref forwarded to the underlying <input> for programmatic focus (e.g. keyboard shortcut). */
+  inputRef?: React.Ref<HTMLInputElement>;
 }
 
 export default function SearchBar({
@@ -19,6 +21,7 @@ export default function SearchBar({
   className = "w-full max-w-md",
   inputClassName = "",
   buttonLabel = "Search",
+  inputRef,
 }: SearchBarProps) {
   const [query, setQuery] = useState(initialValue);
 
@@ -37,6 +40,7 @@ export default function SearchBar({
     <form onSubmit={handleSubmit} className={className} role="search">
       <div className="relative">
         <input
+          ref={inputRef}
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}

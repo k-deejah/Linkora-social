@@ -16,9 +16,8 @@
     "@stellar/stellar-sdk": "13.1.0",
     "cbor-x": "1.5.9",
     "express": "4.21.2",
-    "pg": "8.13.3",
-    "pino": "^8.21.0",
-    "pino-pretty": "^11.3.0"
+    "express-rate-limit": "^7.3.1",
+    "pg": "8.13.3"
   },
   "devDependencies": {
     "@types/express": "5.0.3",
