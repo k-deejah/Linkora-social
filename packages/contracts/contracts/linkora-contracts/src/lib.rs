@@ -75,6 +75,7 @@ const RENT_RATE_BPS_KEY: Symbol = symbol_short!("RENT_BPS");
 const MODERATION_SLASH_BPS: Symbol = symbol_short!("MOD_SL_B");
 const CONTRACT_STATE: Symbol = symbol_short!("CT_STATE");
 const ROLES: Symbol = symbol_short!("ROLES");
+const PAUSED: Symbol = symbol_short!("PAUSED");
 
 // ── TTL Constants ─────────────────────────────────────────────────────────────
 //
@@ -353,6 +354,20 @@ pub struct LikePostEvent {
 #[derive(Clone)]
 pub struct ContractUpgraded {
     pub new_wasm_hash: BytesN<32>,
+}
+
+#[contractevent]
+#[derive(Clone)]
+pub struct PausedEvent {
+    #[topic]
+    pub admin: Address,
+}
+
+#[contractevent]
+#[derive(Clone)]
+pub struct UnpausedEvent {
+    #[topic]
+    pub admin: Address,
 }
 
 #[contractevent]
@@ -1827,7 +1842,6 @@ impl LinkoraContract {
         validate_non_default_address(&env, "admin", &admin);
         Self::require_role(&env, &admin, Role::Admin);
         validate_protocol_fee(&env, fee_bps);
-        Self::require_admin(&env);
         Self::require_not_paused(&env);
         assert!(fee_bps <= 10_000, "invalid fee");
         let old_fee_bps = Self::get_fee_bps(env.clone());
@@ -1850,7 +1864,6 @@ impl LinkoraContract {
         validate_non_default_address(&env, "admin", &admin);
         Self::require_role(&env, &admin, Role::Admin);
         validate_non_default_address(&env, "treasury", &treasury);
-        Self::require_admin(&env);
         Self::require_not_paused(&env);
         let old_treasury = Self::get_treasury(env.clone()).expect("treasury not set");
         env.storage().instance().set(&TREASURY, &treasury);
@@ -1880,7 +1893,6 @@ impl LinkoraContract {
         validate_non_default_address(&env, "admin", &admin);
         Self::require_role(&env, &admin, Role::Admin);
         validate_u32_range(&env, "cooldown_ledgers", cooldown_ledgers, 1, u32::MAX);
-        Self::require_admin(&env);
         Self::require_not_paused(&env);
         assert!(cooldown_ledgers > 0, "cooldown must be positive");
         env.storage()
@@ -2361,7 +2373,6 @@ impl LinkoraContract {
             .expect("contract version overflow");
         state.implementation_wasm_hash = Some(new_wasm_hash.clone());
         env.storage().instance().set(&CONTRACT_STATE, &state);
-        Self::require_admin(&env);
         Self::require_not_paused(&env);
         env.deployer()
             .update_current_contract_wasm(new_wasm_hash.clone());
@@ -2860,6 +2871,35 @@ impl LinkoraContract {
             Self::has_role_internal(env, account, role),
             format!("{role:?} role required")
         );
+    }
+
+    // ── Emergency Pause ──────────────────────────────────────────────────────
+
+    pub fn pause(env: Env) {
+        Self::require_role(&env, &env.current_contract_address(), Role::Admin);
+        if Self::is_paused(env.clone()) {
+            panic!("already paused");
+        }
+        env.storage().instance().set(&PAUSED, &true);
+        let admin: Address = env.current_contract_address();
+        PausedEvent { admin }.publish(&env);
+    }
+
+    pub fn unpause(env: Env) {
+        Self::require_role(&env, &env.current_contract_address(), Role::Admin);
+        if !Self::is_paused(env.clone()) {
+            panic!("not paused");
+        }
+        env.storage().instance().set(&PAUSED, &false);
+        let admin: Address = env.current_contract_address();
+        UnpausedEvent { admin }.publish(&env);
+    }
+
+    pub fn is_paused(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get::<Symbol, bool>(&PAUSED)
+            .unwrap_or(false)
     }
 
     fn require_not_paused(env: &Env) {
