@@ -114,7 +114,7 @@ export function createApp(db: Database, pg?: PgPool): express.Application {
   });
 
   // Apply rate limiting to all /api routes.
-  app.use("/api", apiLimiter);
+  app.use("/api", rateLimit);
 
   // Self-fencing middleware: stop serving when Byzantine majority detected.
   app.use("/api", (_req: Request, res: Response, next: NextFunction): void => {
@@ -134,6 +134,11 @@ export function createApp(db: Database, pg?: PgPool): express.Application {
   app.use("/api/pools", createPoolsRouter(db));
   app.use("/api/governance", createGovernanceRouter(db));
   app.use("/api/users", createUsersRouter(db));
+
+  // Feed routes (requires pg pool)
+  if (pg) {
+    app.use("/api/feed", createFeedRouter(pg));
+  }
 
   const notificationService = pg
     ? new NotificationService({ deviceTokenStore: new PostgresDeviceTokenStore(pg) })
