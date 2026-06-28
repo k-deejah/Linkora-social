@@ -4,6 +4,8 @@ import { WalletProvider } from "@/components/WalletProvider";
 import { NavBar } from "@/components/NavBar";
 import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { ThemeBootstrap } from "@/components/ThemeBootstrap";
+import { KeyboardShortcutsProvider } from "@/contexts/KeyboardShortcutsContext";
+import { KeyboardShortcutsModal } from "@/components/KeyboardShortcutsModal";
 
 export const metadata: Metadata = {
   title: "Linkora",
