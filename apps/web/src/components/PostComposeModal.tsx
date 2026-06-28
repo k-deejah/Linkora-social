@@ -13,6 +13,7 @@ import {
   Transaction,
 } from "@stellar/stellar-sdk";
 import { signTransaction } from "@stellar/freighter-api";
+import { RichTextComposer } from "./RichTextComposer";
 
 const MAX_CONTENT_LENGTH = 280;
 const AMBER_THRESHOLD = 50;
@@ -41,8 +42,6 @@ interface PublishState {
 
 export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModalProps) {
   const router = useRouter();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [content, setContent] = useState("");
   const [publishState, setPublishState] = useState<PublishState>({
     status: "idle",
     errorMsg: "",
@@ -50,19 +49,14 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
     txHash: null,
   });
 
-  const charCount = content.length;
-  const remaining = MAX_CONTENT_LENGTH - charCount;
-  const isOverLimit = charCount > MAX_CONTENT_LENGTH;
-  const isRed = remaining <= RED_THRESHOLD;
-  const isAmber = !isRed && remaining <= AMBER_THRESHOLD;
-  const isEmpty = content.trim().length === 0;
-  const isDisabled = isEmpty || isOverLimit || publishState.status !== "idle";
-
-  useEffect(() => {
-    if (isOpen && textareaRef.current) {
-      setTimeout(() => textareaRef.current?.focus(), 100);
-    }
-  }, [isOpen]);
+  // Mock users for mentions - in production, this would come from an API
+  const mockUsers = [
+    { id: "1", username: "alice", displayName: "Alice Johnson" },
+    { id: "2", username: "bob", displayName: "Bob Smith" },
+    { id: "3", username: "charlie", displayName: "Charlie Davis" },
+    { id: "4", username: "diana", displayName: "Diana Prince" },
+    { id: "5", username: "evan", displayName: "Evan Wright" },
+  ];
 
   useEffect(() => {
     if (!isOpen) return;
@@ -76,17 +70,9 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
     return () => window.removeEventListener("keydown", handleEscape);
   }, [isOpen, onClose, publishState.status]);
 
-  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newContent = e.target.value;
-    if (newContent.length <= MAX_CONTENT_LENGTH) {
-      setContent(newContent);
-    }
-  };
-
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (isDisabled || !publicKey) return;
+    async (content: string, attachments?: File[], poll?: any[]) => {
+      if (!publicKey) return;
 
       setPublishState({ status: "awaiting_signature", errorMsg: "", postId: null, txHash: null });
 
@@ -170,7 +156,7 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
         });
       }
     },
-    [content, isDisabled, publicKey, onClose, router]
+    [publicKey, onClose, router]
   );
 
   const handleTryAgain = () => {
@@ -199,7 +185,7 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
         </header>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 md:p-6 flex flex-col gap-4 overflow-y-auto">
+        <div className="p-4 md:p-6 flex flex-col gap-4 overflow-y-auto">
           {/* Author info */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[var(--accent)] flex items-center justify-center text-white font-bold text-sm">
@@ -210,37 +196,14 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
             </span>
           </div>
 
-          {/* Textarea */}
-          <div className="relative">
-            <textarea
-              ref={textareaRef}
-              value={content}
-              onChange={handleContentChange}
-              placeholder="What's happening on-chain?"
-              maxLength={MAX_CONTENT_LENGTH}
-              disabled={publishState.status !== "idle" && publishState.status !== "error"}
-              className="w-full min-h-[120px] bg-[var(--background)] border border-[var(--border)] rounded-xl p-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
-            />
-            {/* Character counter */}
-            <div className="absolute bottom-3 right-4 flex items-center gap-2">
-              <span
-                className={`text-xs font-mono ${isRed ? "text-red-500" : isAmber ? "text-yellow-500" : "text-[var(--text-muted)]"}`}
-                aria-label={`${remaining} characters remaining`}
-              >
-                {remaining}
-              </span>
-            </div>
-          </div>
-
-          {/* Live Preview */}
-          {content && (
-            <div className="bg-[var(--background)] border border-[var(--border)] rounded-xl p-4 flex flex-col gap-2">
-              <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                Preview
-              </span>
-              <p className="text-white text-sm break-words whitespace-pre-wrap">{content}</p>
-            </div>
-          )}
+          {/* Rich Text Composer */}
+          <RichTextComposer
+            onSubmit={handleSubmit}
+            onCancel={onClose}
+            placeholder="What's happening on-chain?"
+            disabled={publishState.status !== "idle" && publishState.status !== "error"}
+            users={mockUsers}
+          />
 
           {/* Status Messages */}
           {publishState.status === "awaiting_signature" && (
@@ -291,22 +254,7 @@ export function PostComposeModal({ isOpen, onClose, publicKey }: PostComposeModa
               </button>
             </div>
           )}
-
-          {/* Submit Button */}
-          {publishState.status !== "success" && (
-            <button
-              type="submit"
-              disabled={isDisabled}
-              className={`w-full py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                isDisabled
-                  ? "bg-gray-700 text-gray-500 cursor-not-allowed"
-                  : "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white"
-              }`}
-            >
-              Publish Post
-            </button>
-          )}
-        </form>
+        </div>
       </div>
     </div>
   );
