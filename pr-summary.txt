@@ -1,0 +1,43 @@
+## Summary
+
+Implements a comprehensive creator analytics dashboard at `/analytics` that gives creators visibility into their engagement metrics and earnings.
+
+## Changes
+
+### New files
+- **`apps/web/src/app/analytics/page.tsx`** — Full analytics dashboard page with Recharts visualizations, date range selector, CSV export, and loading/error/empty states
+- **`apps/web/src/lib/analytics.ts`** — Analytics data layer: fetches posts from indexer with pagination, fetches attestations from analytics-oracle, computes time-series data bucketed by day, generates CSV export
+
+### Modified files
+- **`apps/web/src/components/NavBar.tsx`** — Added analytics navigation link with bar chart icon, placed before governance link
+- **`apps/web/package.json`** — Added `recharts` dependency for chart rendering
+
+## Features Implemented
+
+| Requirement | Implementation |
+|---|---|
+| Post views/engagement over time | Line chart (Recharts `LineChart`) showing likes per day |
+| Follower growth | Line chart showing cumulative follower activity over time |
+| Tip earnings (bar chart) | Bar chart (Recharts `BarChart`) showing tips per day in stroops |
+| Top-performing posts ranked | Table ranked by likes + tips composite score, each post links to its detail page |
+| Top tippers list | Shows unique tippers count from oracle attestation with link to Stellar Expert for on-chain verification |
+| Date range selector | 7d / 30d / 90d toggle buttons filtering posts by approximate ledger range |
+| Export data as CSV | Generates and downloads a CSV file with all time-series metrics |
+| Chart library | Uses **Recharts** (v3) — installed as a new dependency |
+
+## Additional Features
+
+- **Summary cards** — Total tips (in XLM), post count, total likes, follower count, unique tippers displayed at the top
+- **Oracle attestation badge** — Shows verification status, ledger window range, and link to on-chain transaction on Stellar Expert
+- **Wallet-aware** — Prompts to connect wallet if not connected, fetches analytics for the connected wallet address
+- **Responsive layout** — Grid adapts from single column on mobile to multi-column on desktop
+- **Consistent styling** — Uses same CSS custom properties (`--bg-primary`, `--accent-coral`, etc.) and Tailwind classes as the rest of the app
+
+## Technical Details
+
+- **Data sources**: Indexer (`GET /api/posts?author=`) for post data with pagination support; Analytics Oracle (`GET /attestations/:creator`) for verified aggregate metrics
+- **Time approximation**: Ledger numbers converted to dates using ~5 seconds per ledger from Stellar genesis
+- **State management**: Discriminated union state type (`loading | error | empty | loaded`) for robust UI rendering
+- **CSV format**: Exports engagement (likes/tips/posts), follower growth, and top posts in structured CSV
+
+Closes #780
