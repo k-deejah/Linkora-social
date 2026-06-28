@@ -74,6 +74,7 @@ const REGISTERED_USERS: Symbol = symbol_short!("R_USERS");
 const RENT_RATE_BPS_KEY: Symbol = symbol_short!("RENT_BPS");
 const MODERATION_SLASH_BPS: Symbol = symbol_short!("MOD_SL_B");
 const CONTRACT_STATE: Symbol = symbol_short!("CT_STATE");
+const ROLES: Symbol = symbol_short!("ROLES");
 
 // ── TTL Constants ─────────────────────────────────────────────────────────────
 //
@@ -164,6 +165,15 @@ pub enum GovParameter {
     GovTimeLock,
     GovVoteWindow,
     ModerationSlashBps,
+}
+
+#[contracttype]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Role {
+    Admin,
+    Moderator,
+    Pauser,
+    Upgrader,
 }
 
 #[contracttype]
@@ -454,6 +464,27 @@ pub struct TreasuryUpdatedEvent {
     pub old_treasury: Address,
     pub new_treasury: Address,
 }
+
+#[contractevent]
+#[derive(Clone)]
+pub struct RoleGrantedEvent {
+    #[topic]
+    pub role: Role,
+    #[topic]
+    pub account: Address,
+    pub sender: Address,
+}
+
+#[contractevent]
+#[derive(Clone)]
+pub struct RoleRevokedEvent {
+    #[topic]
+    pub role: Role,
+    #[topic]
+    pub account: Address,
+    pub sender: Address,
+}
+
 #[contractevent]
 #[derive(Clone)]
 pub struct GovProposalCreatedEvent {
@@ -576,11 +607,18 @@ impl LinkoraContract {
         {
             panic!("already initialized");
         }
+        admin.require_auth();
         validate_non_default_address(&env, "admin", &admin);
         validate_non_default_address(&env, "treasury", &treasury);
         validate_protocol_fee(&env, fee_bps);
         env.storage().instance().set(&INITIALIZED, &true);
         env.storage().instance().set(&ADMIN, &admin);
+        let mut roles = Map::new(&env);
+        roles.set(
+            admin.clone(),
+            Self::role_mask(Role::Admin) | Self::role_mask(Role::Upgrader),
+        );
+        env.storage().instance().set(&ROLES, &roles);
         env.storage().instance().set(&TREASURY, &treasury);
         env.storage().instance().set(&FEE_BPS, &fee_bps);
         env.storage()
@@ -594,6 +632,67 @@ impl LinkoraContract {
                 implementation_wasm_hash: None,
             },
         );
+
+        RoleGrantedEvent {
+            role: Role::Admin,
+            account: admin.clone(),
+            sender: admin.clone(),
+        }
+        .publish(&env);
+
+        RoleGrantedEvent {
+            role: Role::Upgrader,
+            account: admin.clone(),
+            sender: admin,
+        }
+        .publish(&env);
+    }
+
+    pub fn grant_role(env: Env, admin: Address, account: Address, role: Role) {
+        Self::bump_instance(&env);
+        admin.require_auth();
+        validate_non_default_address(&env, "admin", &admin);
+        validate_non_default_address(&env, "account", &account);
+        Self::require_role(&env, &admin, Role::Admin);
+
+        let mut roles = Self::get_roles(&env);
+        let current = roles.get(account.clone()).unwrap_or(0);
+        let updated = current | Self::role_mask(role);
+        roles.set(account.clone(), updated);
+        env.storage().instance().set(&ROLES, &roles);
+
+        RoleGrantedEvent {
+            role,
+            account,
+            sender: admin,
+        }
+        .publish(&env);
+    }
+
+    pub fn revoke_role(env: Env, admin: Address, account: Address, role: Role) {
+        Self::bump_instance(&env);
+        admin.require_auth();
+        validate_non_default_address(&env, "admin", &admin);
+        validate_non_default_address(&env, "account", &account);
+        Self::require_role(&env, &admin, Role::Admin);
+
+        let mut roles = Self::get_roles(&env);
+        let current = roles.get(account.clone()).unwrap_or(0);
+        let updated = current & !Self::role_mask(role);
+        roles.set(account.clone(), updated);
+        env.storage().instance().set(&ROLES, &roles);
+
+        RoleRevokedEvent {
+            role,
+            account,
+            sender: admin,
+        }
+        .publish(&env);
+    }
+
+    pub fn has_role(env: Env, account: Address, role: Role) -> bool {
+        validate_non_default_address(&env, "account", &account);
+        Self::has_role_internal(&env, &account, role)
     }
 
     // ── Profiles ──────────────────────────────────────────────────────────────
@@ -1026,9 +1125,11 @@ impl LinkoraContract {
     /// Admin function to migrate users from the legacy Vec-based social graph
     /// to the new adjacency-set layout. Processable in chunks of up to 50
     /// users per call. Idempotent: already-migrated edges are skipped.
-    pub fn migrate_follow_graph(env: Env, users: Vec<Address>) {
+    pub fn migrate_follow_graph(env: Env, admin: Address, users: Vec<Address>) {
         Self::bump_instance(&env);
-        Self::require_admin(&env);
+        admin.require_auth();
+        validate_non_default_address(&env, "admin", &admin);
+        Self::require_role(&env, &admin, Role::Admin);
         validate_address_list(&env, "users", &users);
         require_with_error!(
             &env,
@@ -1450,7 +1551,7 @@ impl LinkoraContract {
         validate_non_default_address(&env, "admin", &admin);
         validate_non_default_address(&env, "token", &token);
         validate_address_list(&env, "initial_admins", &initial_admins);
-        Self::require_admin(&env);
+        Self::require_role(&env, &admin, Role::Admin);
         let key = StorageKey::Pool(pool_id.clone());
         assert!(!env.storage().persistent().has(&key), "pool exists");
         assert!(
@@ -1698,9 +1799,11 @@ impl LinkoraContract {
 
     // ── Fee & Treasury ────────────────────────────────────────────────────────
 
-    pub fn set_fee(env: Env, fee_bps: u32) {
+    pub fn set_fee(env: Env, admin: Address, fee_bps: u32) {
         Self::bump_instance(&env);
-        Self::require_admin(&env);
+        admin.require_auth();
+        validate_non_default_address(&env, "admin", &admin);
+        Self::require_role(&env, &admin, Role::Admin);
         validate_protocol_fee(&env, fee_bps);
         let old_fee_bps = Self::get_fee_bps(env.clone());
         env.storage().instance().set(&FEE_BPS, &fee_bps);
@@ -1716,9 +1819,11 @@ impl LinkoraContract {
         .publish(&env);
     }
 
-    pub fn set_treasury(env: Env, treasury: Address) {
+    pub fn set_treasury(env: Env, admin: Address, treasury: Address) {
         Self::bump_instance(&env);
-        Self::require_admin(&env);
+        admin.require_auth();
+        validate_non_default_address(&env, "admin", &admin);
+        Self::require_role(&env, &admin, Role::Admin);
         validate_non_default_address(&env, "treasury", &treasury);
         let old_treasury = Self::get_treasury(env.clone()).expect("treasury not set");
         env.storage().instance().set(&TREASURY, &treasury);
@@ -1742,9 +1847,11 @@ impl LinkoraContract {
         env.storage().instance().get(&TREASURY)
     }
 
-    pub fn set_tip_cooldown_window(env: Env, cooldown_ledgers: u32) {
+    pub fn set_tip_cooldown_window(env: Env, admin: Address, cooldown_ledgers: u32) {
         Self::bump_instance(&env);
-        Self::require_admin(&env);
+        admin.require_auth();
+        validate_non_default_address(&env, "admin", &admin);
+        Self::require_role(&env, &admin, Role::Admin);
         validate_u32_range(&env, "cooldown_ledgers", cooldown_ledgers, 1, u32::MAX);
         env.storage()
             .instance()
@@ -1762,6 +1869,7 @@ impl LinkoraContract {
 
     pub fn gov_init_config(
         env: Env,
+        admin: Address,
         quorum: u32,
         time_lock_ledgers: u32,
         vote_window_ledgers: u32,
@@ -1769,7 +1877,9 @@ impl LinkoraContract {
         quorum_floor: u32,
     ) {
         Self::bump_instance(&env);
-        Self::require_admin(&env);
+        admin.require_auth();
+        validate_non_default_address(&env, "admin", &admin);
+        Self::require_role(&env, &admin, Role::Admin);
         validate_u32_range(&env, "quorum", quorum, 1, MAX_QUORUM);
         validate_u32_range(&env, "time_lock_ledgers", time_lock_ledgers, 1, u32::MAX);
         validate_u32_range(
@@ -2143,12 +2253,7 @@ impl LinkoraContract {
         Self::bump_instance(&env);
         admin.require_auth();
         validate_non_default_address(&env, "admin", &admin);
-        let stored_admin: Address = env
-            .storage()
-            .instance()
-            .get(&ADMIN)
-            .expect("not initialized");
-        assert!(admin == stored_admin, "not admin");
+        Self::require_role(&env, &admin, Role::Admin);
         let key = StorageKey::OracleKey(name);
         env.storage().persistent().set(&key, &pubkey);
         Self::bump(&env, &key);
@@ -2209,15 +2314,17 @@ impl LinkoraContract {
 
     // ── Upgradability ─────────────────────────────────────────────────────────
 
-    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+    pub fn upgrade(env: Env, upgrader: Address, new_wasm_hash: BytesN<32>) {
         Self::bump_instance(&env);
-        Self::require_admin(&env);
+        let mut state = Self::get_contract_state(&env);
+        upgrader.require_auth();
+        validate_non_default_address(&env, "upgrader", &upgrader);
+        Self::require_role(&env, &upgrader, Role::Upgrader);
         require_with_error!(
             &env,
             new_wasm_hash != BytesN::default(),
             "wasm hash must not be empty"
         );
-        let mut state = Self::get_contract_state(&env);
         state.version = state
             .version
             .checked_add(1)
@@ -2390,8 +2497,10 @@ impl LinkoraContract {
         }
     }
 
-    pub fn set_rent_rate_bps(env: Env, rate: u32) {
-        Self::require_admin(&env);
+    pub fn set_rent_rate_bps(env: Env, admin: Address, rate: u32) {
+        admin.require_auth();
+        validate_non_default_address(&env, "admin", &admin);
+        Self::require_role(&env, &admin, Role::Admin);
         validate_u32_range(&env, "rate", rate, 1, MAX_FEE_BPS);
         env.storage().instance().set(&RENT_RATE_BPS_KEY, &rate);
     }
@@ -2403,8 +2512,10 @@ impl LinkoraContract {
             .unwrap_or(100)
     }
 
-    pub fn batch_bump_user_graph(env: Env, user: Address) -> u32 {
-        Self::require_admin(&env);
+    pub fn batch_bump_user_graph(env: Env, admin: Address, user: Address) -> u32 {
+        admin.require_auth();
+        validate_non_default_address(&env, "admin", &admin);
+        Self::require_role(&env, &admin, Role::Admin);
         validate_non_default_address(&env, "user", &user);
         let keys = Self::get_user_keys(&env, &user);
         let mut bumped = 0;
@@ -2519,12 +2630,16 @@ impl LinkoraContract {
 
     pub fn review_report(
         env: Env,
+        moderator: Address,
         signers: Vec<Address>,
         post_id: u64,
         reporter: Address,
         verdict: ReportStatus,
     ) {
         Self::bump_instance(&env);
+        moderator.require_auth();
+        validate_non_default_address(&env, "moderator", &moderator);
+        Self::require_role(&env, &moderator, Role::Moderator);
         validate_address_list(&env, "signers", &signers);
         validate_non_default_address(&env, "reporter", &reporter);
         validate_report_verdict(&env, &verdict);
@@ -2685,13 +2800,34 @@ impl LinkoraContract {
 
     // ── Internal Helpers ──────────────────────────────────────────────────────
 
-    fn require_admin(env: &Env) {
-        let admin: Address = env
-            .storage()
+    fn role_mask(role: Role) -> u32 {
+        match role {
+            Role::Admin => 1 << 0,
+            Role::Moderator => 1 << 1,
+            Role::Pauser => 1 << 2,
+            Role::Upgrader => 1 << 3,
+        }
+    }
+
+    fn get_roles(env: &Env) -> Map<Address, u32> {
+        env.storage()
             .instance()
-            .get(&ADMIN)
-            .expect("not initialized");
-        admin.require_auth();
+            .get(&ROLES)
+            .unwrap_or_else(|| Map::new(env))
+    }
+
+    fn has_role_internal(env: &Env, account: &Address, role: Role) -> bool {
+        let roles = Self::get_roles(env);
+        let current = roles.get(account.clone()).unwrap_or(0);
+        current & Self::role_mask(role) != 0
+    }
+
+    fn require_role(env: &Env, account: &Address, role: Role) {
+        require_with_error!(
+            env,
+            Self::has_role_internal(env, account, role),
+            format!("{role:?} role required")
+        );
     }
 
     fn get_contract_state(env: &Env) -> ContractState {
