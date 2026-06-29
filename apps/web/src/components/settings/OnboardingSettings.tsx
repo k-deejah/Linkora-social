@@ -3,10 +3,17 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useOnboarding } from "@/contexts/OnboardingContext";
+import { useGuidedTour } from "@/hooks/useGuidedTour";
 
 export function OnboardingSettings() {
   const router = useRouter();
   const { state, resetOnboarding } = useOnboarding();
+  const { resetTour } = useGuidedTour();
+
+  const handleRestartFeatureTour = () => {
+    resetTour();
+    router.push("/feed");
+  };
 
   const handleRestartOnboarding = () => {
     if (confirm("Are you sure you want to restart the onboarding wizard? This will reset your onboarding progress.")) {
@@ -79,6 +86,13 @@ export function OnboardingSettings() {
               Continue Onboarding
             </button>
           )}
+
+          <button
+            onClick={handleRestartFeatureTour}
+            className="w-full px-4 py-2 border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] transition-colors"
+          >
+            Replay Feature Tour
+          </button>
 
           <button
             onClick={handleRestartOnboarding}

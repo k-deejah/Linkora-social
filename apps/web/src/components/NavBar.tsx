@@ -192,6 +192,7 @@ export function NavBar() {
                 className="rounded-lg p-1.5 text-[var(--text-muted)] hover:text-violet-400 transition-colors"
                 aria-label="Governance"
                 data-testid="governance-link"
+                data-tour="governance"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
