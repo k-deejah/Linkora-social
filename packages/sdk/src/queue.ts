@@ -75,13 +75,43 @@ export class TransactionQueue {
     this.maxPollAttempts = config.maxPollAttempts ?? 30;
   }
 
-  /** Register a status-change listener. */
+  /**
+   * Register a status-change listener.
+   *
+   * @param event The event name to listen for (currently only "status").
+   * @param listener The callback function invoked on status changes.
+   * @returns The queue instance for chaining.
+   *
+   * @example
+   * ```ts
+   * queue.on("status", (e) => {
+   *   console.log(`Step ${e.index} status: ${e.status}`);
+   *   if (e.status === "failed") {
+   *     console.error(`Error: ${e.error}`);
+   *   }
+   * });
+   * ```
+   */
   on(event: "status", listener: TxStatusListener): this {
     this.listeners.push(listener);
     return this;
   }
 
-  /** Add a transaction step to the queue. */
+  /**
+   * Add a transaction step to the queue.
+   *
+   * @param xdr The base64-encoded transaction envelope XDR.
+   * @param rollback An optional callback to run if a subsequent step in the queue fails.
+   * @returns The queue instance for chaining.
+   *
+   * @example
+   * ```ts
+   * queue.enqueue(txOpXdr, async () => {
+   *   console.log("Rolling back step 0");
+   *   // Implement any necessary rollback logic here
+   * });
+   * ```
+   */
   enqueue(xdr: string, rollback?: QueueStep["rollback"]): this {
     this.steps.push({ xdr, rollback });
     return this;
@@ -90,6 +120,20 @@ export class TransactionQueue {
   /**
    * Execute all enqueued steps in order.
    * On failure of step N, rollbacks for steps 0…N-1 are called in reverse order.
+   *
+   * @throws {SigningError} If a transaction fails to sign.
+   * @throws {NetworkError} If submission or confirmation fails on the network.
+   *
+   * @example
+   * ```ts
+   * try {
+   *   await queue.run();
+   *   console.log("All transactions completed successfully!");
+   * } catch (error) {
+   *   console.error("Queue execution failed:", error.message);
+   *   // Rollbacks for previously successful steps have already been executed
+   * }
+   * ```
    */
   async run(): Promise<void> {
     const completed: number[] = [];
