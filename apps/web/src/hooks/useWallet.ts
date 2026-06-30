@@ -1,6 +1,16 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useWalletContext } from "@/components/WalletProvider";
+
+// Re-export the context hook as the canonical useWallet for simple consumers
+// (nav bar, header, etc.) that only need { address, connected, network,
+// connect, disconnect }.
+export { useWalletContext as useWallet } from "@/components/WalletProvider";
+
+// ---------------------------------------------------------------------------
+// Richer onboarding state — used by OnboardingFlow
+// ---------------------------------------------------------------------------
 
 export type WalletState =
   | "loading"
@@ -20,24 +30,26 @@ const HORIZON_TESTNET = "https://horizon-testnet.stellar.org";
 async function fetchXlmBalance(address: string): Promise<string> {
   try {
     const res = await fetch(`${HORIZON_TESTNET}/accounts/${address}`);
-    if (!res.ok) return "0"; // account not funded yet
+    if (!res.ok) return "0";
     const data = await res.json();
-    const native = (data.balances as { asset_type: string; balance: string }[]).find(
-      (b) => b.asset_type === "native"
-    );
+    const native = (
+      data.balances as { asset_type: string; balance: string }[]
+    ).find((b) => b.asset_type === "native");
     return native?.balance ?? "0";
   } catch {
     return "0";
   }
 }
 
-export function useWallet() {
+/**
+ * useOnboardingWallet — full onboarding state machine used by OnboardingFlow.
+ * Delegates connect/disconnect to WalletContext so state stays in sync.
+ */
+export function useOnboardingWallet() {
+  const { address, connected, network, connect: ctxConnect } = useWalletContext();
+
   const [state, setState] = useState<WalletState>("loading");
-  const [wallet, setWallet] = useState<WalletInfo>({
-    address: null,
-    network: null,
-    balance: null,
-  });
+  const [balance, setBalance] = useState<string | null>(null);
 
   const detectState = useCallback(async () => {
     const hasFreighter =
@@ -50,51 +62,37 @@ export function useWallet() {
     }
 
     try {
-      const { isConnected, getPublicKey, getNetwork } = await import("@stellar/freighter-api");
-      const connected = await isConnected();
+      const { isConnected } = await import("@stellar/freighter-api");
+      const isConn = await isConnected();
 
-      if (!connected) {
+      if (!isConn || !connected || !address) {
         setState("not_connected");
+        setBalance(null);
         return;
       }
 
-      const [address, networkResult] = await Promise.all([
-        getPublicKey(),
-        getNetwork(),
-      ]);
-
-      if (!address) {
-        setState("not_connected");
-        return;
-      }
-
-      const network = networkResult ?? null;
-      const balance = await fetchXlmBalance(address);
-
-      setWallet({ address, network: network ?? null, balance });
+      const bal = await fetchXlmBalance(address);
+      setBalance(bal);
 
       // TODO: replace with actual contract call to get_profile(address)
       setState("connected_no_profile");
     } catch {
       setState("not_connected");
     }
-  }, []);
+  }, [address, connected]);
 
   useEffect(() => {
     detectState();
   }, [detectState]);
 
   const connect = useCallback(async () => {
-    try {
-      const { requestAccess } = await import("@stellar/freighter-api");
-      await requestAccess();
-      await detectState();
-    } catch {
-      // user rejected
-    }
-  }, [detectState]);
+    await ctxConnect();
+    // detectState will re-run via the effect when `address` / `connected` change
+  }, [ctxConnect]);
 
   const markProfileCreated = useCallback(() => setState("ready"), []);
+
+  const wallet: WalletInfo = { address, network, balance };
 
   return { state, wallet, connect, markProfileCreated, refresh: detectState };
 }

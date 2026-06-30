@@ -1,3 +1,61 @@
+# Indexer Integration Design
+
+## Overview
+
+The Linkora social contract emits `PostCreatedEvent` when posts are created on-chain. An off-chain indexer service monitors these events and builds a searchable index of post content to enable keyword search functionality.
+
+## Architecture
+
+```
+Stellar Network → Indexer Service → Search Database → Web Frontend
+     ↓               ↓                    ↓              ↓
+PostCreatedEvent → Event Processing → Indexed Content → Search API
+```
+
+## Event Processing Flow
+
+1. **Event Monitoring**: Indexer subscribes to contract events via Stellar RPC
+2. **Event Parsing**: Extract post data from `PostCreatedEvent` 
+3. **Content Indexing**: Store post content with full-text search capabilities
+4. **API Serving**: Provide search endpoint for frontend queries
+
+## PostCreatedEvent Structure
+
+The contract emits events with this structure:
+```rust
+pub struct PostCreatedEvent {
+    pub id: u64,
+    pub author: Address,
+}
+```
+
+## Required Indexer Components
+
+### Event Subscriber
+- Monitor Stellar network for contract events
+- Parse `PostCreatedEvent` data
+- Fetch full post content using `get_post(id)` contract call
+
+### Search Index
+- Full-text search engine (e.g., Elasticsearch, PostgreSQL with tsvector)
+- Index post content for keyword matching
+- Support pagination and relevance scoring
+
+### API Server
+- REST endpoint for search queries
+- Rate limiting and input validation
+- CORS configuration for web frontend
+
+## Implementation Considerations
+
+- **Event Reliability**: Handle network interruptions and missed events
+- **Content Updates**: Posts can be deleted via `delete_post()` - indexer must handle removal
+- **Performance**: Implement caching and efficient search algorithms
+- **Security**: Validate and sanitize search queries to prevent injection attacks
+
+## Integration Points
+
+The web frontend integrates with the indexer via the search API defined in `API.md`. The indexer operates independently of the web application and can be deployed as a separate service.
 # Linkora Indexer Design
 
 This document describes how an off-chain indexer should consume Linkora contract events to build a queryable social graph. It is technology-agnostic: no specific database engine or programming language is assumed.
@@ -189,3 +247,212 @@ All events carry a version symbol (`v1`, `v2`, …) as the third topic. When the
 4. Old and new versions may coexist briefly if the upgrade is rolled out incrementally.
 
 Maintain a version compatibility table in the indexer configuration so that adding support for a new version requires only a configuration change and a new decoder, not a full re-index.
+
+---
+
+## 6. Running the Indexer Locally with Docker Compose
+
+The example `docker-compose.yml` below provisions the indexer service together with a PostgreSQL database. Adjust image names once a concrete implementation is published.
+
+```yaml
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: linkora
+      POSTGRES_PASSWORD: linkora
+      POSTGRES_DB: linkora_index
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  indexer:
+    image: ghcr.io/epta-node/linkora-indexer:latest
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgres://linkora:linkora@db:5432/linkora_index
+      CONTRACT_ID: ${CONTRACT_ID}
+      RPC_URL: ${RPC_URL:-https://soroban-testnet.stellar.org}
+      NETWORK_PASSPHRASE: ${NETWORK_PASSPHRASE:-Test SDF Network ; September 2015}
+      POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-5000}
+      BATCH_SIZE: ${BATCH_SIZE:-100}
+      API_PORT: 3001
+    ports:
+      - "3001:3001"
+
+volumes:
+  pg_data:
+```
+
+### Required environment variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `CONTRACT_ID` | Deployed Linkora contract address | `CABC...` |
+| `RPC_URL` | Soroban RPC endpoint | `https://soroban-testnet.stellar.org` |
+| `NETWORK_PASSPHRASE` | Stellar network passphrase | `Test SDF Network ; September 2015` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgres://user:pass@host:5432/db` |
+| `POLL_INTERVAL_MS` | How often to poll for new ledgers (ms) | `5000` |
+| `BATCH_SIZE` | Ledgers to fetch per polling cycle | `100` |
+| `API_PORT` | Port the REST API listens on | `3001` |
+
+### Quick start
+
+```bash
+# Copy and fill in required values
+cp .env.indexer.example .env.indexer
+
+# Start services
+docker compose --env-file .env.indexer up -d
+
+# Tail indexer logs
+docker compose logs -f indexer
+
+# Verify health
+curl http://localhost:3001/health
+```
+
+---
+
+## 7. Database Schema
+
+The entity-relationship diagram below maps to the data models in section 2.
+
+```
+┌─────────────────────────────┐        ┌──────────────────────────────┐
+│           profile           │        │            follow             │
+├──────────────┬──────────────┤        ├──────────────┬───────────────┤
+│ address (PK) │ string       │◄───┐   │ follower(PK) │ string (FK→profile) │
+│ username     │ string       │    └───│ followee(PK) │ string (FK→profile) │
+│creator_token │ string       │        │ ledger       │ u64           │
+│updated_ledger│ u64          │        └──────────────┴───────────────┘
+└─────────────────────────────┘
+
+┌─────────────────────────────┐        ┌──────────────────────────────┐
+│            post             │        │             like              │
+├──────────────┬──────────────┤        ├──────────────┬───────────────┤
+│ id    (PK)   │ u64          │◄──┐    │ post_id (PK) │ u64 (FK→post) │
+│ author       │ string       │   └────│ user    (PK) │ string        │
+│ deleted      │ bool         │        │ ledger       │ u64           │
+│ tip_total    │ i128         │        └──────────────┴───────────────┘
+│ like_count   │ u64          │
+│created_ledger│ u64          │        ┌──────────────────────────────┐
+│deleted_ledger│ u64 | null   │        │             tip              │
+└─────────────────────────────┘        ├──────────────┬───────────────┤
+                                       │ id    (PK)   │ u64           │
+┌─────────────────────────────┐        │ tipper       │ string        │
+│            pool             │        │ post_id      │ u64 (FK→post) │
+├──────────────┬──────────────┤        │ amount       │ i128          │
+│ pool_id (PK) │ string       │        │ fee          │ i128          │
+│ token        │ string       │        │ ledger       │ u64           │
+│ balance      │ i128         │        │ tx_hash      │ string        │
+│updated_ledger│ u64          │        └──────────────┴───────────────┘
+└─────────────────────────────┘
+
+┌─────────────────────────────┐
+│           cursor            │
+├──────────────┬──────────────┤
+│ key   (PK)   │ string       │
+│ ledger_seq   │ u64          │
+│ event_cursor │ string       │
+└─────────────────────────────┘
+```
+
+### Recommended indexes
+
+```sql
+-- Fast lookup of posts by author
+CREATE INDEX idx_post_author ON post (author);
+
+-- Fast tip history per post
+CREATE INDEX idx_tip_post_id ON tip (post_id);
+
+-- Fast tips sent by an address
+CREATE INDEX idx_tip_tipper ON tip (tipper);
+
+-- Fast follow/follower traversal
+CREATE INDEX idx_follow_followee ON follow (followee);
+
+-- Full-text search on post content (PostgreSQL)
+ALTER TABLE post ADD COLUMN content_tsv tsvector
+  GENERATED ALWAYS AS (to_tsvector('english', content)) STORED;
+CREATE INDEX idx_post_fts ON post USING GIN (content_tsv);
+```
+
+---
+
+## 8. Extending the Indexer with New Event Handlers
+
+Adding support for a new contract event requires four steps.
+
+### Step 1 — Identify the event topic filter
+
+Every Linkora event follows the pattern `(Linkora, <name>, <version>)`. Find the new event name in [`EVENTS.md`](../../packages/contracts/contracts/linkora-contracts/EVENTS.md) and note its topic and data payload shape.
+
+### Step 2 — Register the topic filter
+
+Add the new filter to the list of topic subscriptions the indexer passes to `rpc.getEvents`. Example (TypeScript):
+
+```ts
+const TOPIC_FILTERS = [
+  // existing filters …
+  ["Linkora", "new_event_name", "v1"],
+];
+```
+
+### Step 3 — Write the event handler
+
+Create a dedicated handler function. The handler receives the decoded event data and a database transaction so writes are atomic with the cursor update.
+
+```ts
+// handlers/newEventHandler.ts
+import { Db } from "../db";
+import { NewEventData } from "../types";
+
+export async function handleNewEvent(
+  db: Db,
+  ledger: number,
+  data: NewEventData,
+): Promise<void> {
+  await db.query(
+    `INSERT INTO new_table (col_a, col_b, ledger)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (col_a) DO UPDATE SET col_b = EXCLUDED.col_b`,
+    [data.colA, data.colB, ledger],
+  );
+}
+```
+
+Key rules:
+- **Always upsert**, never plain insert — events can be replayed.
+- **Use the passed transaction** so the handler and cursor update commit together.
+- **Log unknown fields** rather than failing — future contract versions may add fields.
+
+### Step 4 — Register the handler in the dispatch table
+
+```ts
+// processor.ts
+import { handleNewEvent } from "./handlers/newEventHandler";
+
+const HANDLERS: Record<string, EventHandler> = {
+  // existing handlers …
+  "new_event_name": handleNewEvent,
+};
+```
+
+The main event loop will route events by their second topic element to this table. If an unrecognised topic arrives, log a warning and skip it — never crash — so the indexer continues processing subsequent events.
+
+### Checklist for a new handler
+
+- [ ] Topic filter registered
+- [ ] Handler function created with idempotent writes
+- [ ] Handler registered in the dispatch table
+- [ ] Database migration written for any new tables or columns
+- [ ] Unit test added (mock the DB, assert the correct upsert is called)
+- [ ] Version compatibility table updated if the handler is version-specific

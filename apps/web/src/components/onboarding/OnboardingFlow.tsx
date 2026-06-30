@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useWallet } from "@/hooks/useWallet";
+import { useOnboardingWallet } from "@/hooks/useWallet";
 import { StepIndicator } from "./StepIndicator";
 import { NotInstalledState } from "./NotInstalledState";
 import { NotConnectedState } from "./NotConnectedState";
@@ -9,7 +9,7 @@ import { FundWalletState } from "./FundWalletState";
 import { NoProfileState } from "./NoProfileState";
 
 export function OnboardingFlow() {
-  const { state, wallet, connect, refresh } = useWallet();
+  const { state, wallet, connect, refresh } = useOnboardingWallet();
   const [skipFund, setSkipFund] = useState(false);
 
   const funded = wallet.balance !== null && parseFloat(wallet.balance) > 0;
