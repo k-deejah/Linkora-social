@@ -4,6 +4,8 @@ import { WalletProvider } from "@/components/WalletProvider";
 import { NavBar } from "@/components/NavBar";
 import { NotificationsProvider } from "@/contexts/NotificationsContext";
 import { OnboardingProvider } from "@/contexts/OnboardingContext";
+import { GuidedTourProvider } from "@/contexts/GuidedTourContext";
+import { GuidedTour } from "@/components/onboarding/GuidedTour";
 import { ThemeBootstrap } from "@/components/ThemeBootstrap";
 import { KeyboardShortcutsProvider } from "@/contexts/KeyboardShortcutsContext";
 import { KeyboardShortcutsModal } from "@/components/KeyboardShortcutsModal";
@@ -26,12 +28,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeBootstrap />
         <WalletProvider>
           <OnboardingProvider>
-            <NotificationsProvider>
-              <NavBar />
-              <main id="main-content" tabIndex={-1} className="pb-16 md:pb-0">
-                {children}
-              </main>
-            </NotificationsProvider>
+            <GuidedTourProvider>
+              <NotificationsProvider>
+                <NavBar />
+                <main id="main-content" tabIndex={-1} className="pb-16 md:pb-0">
+                  {children}
+                </main>
+                <GuidedTour />
+              </NotificationsProvider>
+            </GuidedTourProvider>
           </OnboardingProvider>
         </WalletProvider>
       </body>

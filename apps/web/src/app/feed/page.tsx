@@ -9,6 +9,7 @@ import { LinkoraClient } from "../../../../../packages/sdk/src/client";
 import { validateAmount, validateStellarAddress } from "@/lib/validate";
 import { FieldError } from "@/components/forms/FieldError";
 import { OnboardingGuard } from "@/components/onboarding/OnboardingGuard";
+import { AppSidebar } from "@/components/AppSidebar";
 import { AnimatedList } from "@/components/AnimatedList";
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -28,9 +29,10 @@ interface InteractivePostCardProps {
   post: Post;
   currentUserAddress: string | null;
   onTipClick: (post: Post) => void;
+  tourAnchor?: boolean;
 }
 
-function InteractivePostCard({ post, currentUserAddress, onTipClick }: InteractivePostCardProps) {
+function InteractivePostCard({ post, currentUserAddress, onTipClick, tourAnchor }: InteractivePostCardProps) {
   const [isTipping, setIsTipping] = useState(false);
   const postId = String(post.id);
 
@@ -88,6 +90,7 @@ function InteractivePostCard({ post, currentUserAddress, onTipClick }: Interacti
       onLike={handleLike}
       onTip={() => onTipClick(post)}
       isTipping={isTipping}
+      tourAnchor={tourAnchor}
     />
   );
 }
@@ -399,7 +402,8 @@ export default function FeedPage() {
           </div>
         )}
 
-        <div className="mx-auto max-w-2xl px-4 py-8">
+        <div className="mx-auto flex max-w-5xl gap-8 px-4 py-8">
+          <div className="min-w-0 flex-1 max-w-2xl" data-tour="feed">
           <header className="mb-8">
             <h1 className="text-3xl font-extrabold tracking-tight mb-6">Home Feed</h1>
 
@@ -470,6 +474,23 @@ export default function FeedPage() {
                 </div>
               ) : posts.length === 0 ? (
                 /* Empty state */
+                <div className="space-y-4">
+                  <div
+                    className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--muted)]/40 p-4"
+                    data-tour="post-actions"
+                  >
+                    <p className="mb-3 text-sm text-[var(--text-muted)]">
+                      When posts appear, you can interact with them here:
+                    </p>
+                    <div className="flex items-center gap-6">
+                      <span className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+                        <span className="text-lg">🤍</span> Like
+                      </span>
+                      <span className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+                        <span className="text-lg">💰</span> Tip
+                      </span>
+                    </div>
+                  </div>
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--muted)]/50 p-12 text-center">
                   {activeTab === "following" && followsNobody ? (
                     <>
@@ -551,16 +572,18 @@ export default function FeedPage() {
                     </>
                   )}
                 </div>
+                </div>
               ) : (
                 /* Feed list */
                 <>
                   <div className="space-y-4">
-                    {posts.map((post) => (
+                    {posts.map((post, index) => (
                       <InteractivePostCard
                         key={post.id}
                         post={post}
                         currentUserAddress={currentUserAddress}
                         onTipClick={handleOpenTipModal}
+                        tourAnchor={index === 0}
                       />
                     ))}
                   </div>
@@ -580,6 +603,8 @@ export default function FeedPage() {
               )}
             </>
           )}
+          </div>
+          <AppSidebar />
         </div>
 
         {/* Scroll to Top FAB */}
